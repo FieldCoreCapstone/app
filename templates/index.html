@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Field Sensor Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="dashboard">
+
+        <!-- Time-range bar -->
+        <div class="time-bar">
+            {% for label in time_ranges %}
+            <button class="time-btn{{ ' active' if loop.first }}" data-range="{{ label }}">{{ label }}</button>
+            {% endfor %}
+        </div>
+
+        <!-- Two-column body -->
+        <div class="body-columns">
+
+            <!-- Left: Sensor Map -->
+            <div class="col-map">
+                <div class="card map-card">
+                    <div class="card-title">Field Sensor Map</div>
+
+                    <div class="legend-row">
+                        <span>Moisture:</span>
+                        <span class="legend-item"><span class="legend-dot low">&#9679;</span> Low</span>
+                        <span class="legend-item"><span class="legend-dot fair">&#9679;</span> Fair</span>
+                        <span class="legend-item"><span class="legend-dot good">&#9679;</span> Good</span>
+                        <span class="legend-item"><span class="legend-dot optimal">&#9679;</span> Optimal</span>
+                    </div>
+
+                    <div class="canvas-wrap">
+                        <canvas id="sensorMap" data-nodes='{{ nodes | tojson }}'></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Sensor Data Table -->
+            <div class="col-data">
+                <div class="card data-card">
+                    <div class="card-title">Sensor Data</div>
+
+                    <div class="table-scroll">
+                        <table class="sensor-table">
+                            <thead>
+                                <tr>
+                                    <th>Node ID</th>
+                                    <th>Battery Level</th>
+                                    <th>Moisture Level</th>
+                                    <th>Temperature</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in table_data %}
+                                <tr>
+                                    <td class="node-id">{{ row.node_id }}</td>
+                                    <td>
+                                        <div class="bar-cell">
+                                            <div class="mini-bar">
+                                                <div class="mini-bar-fill" style="width:{{ row.battery }}%; background:{{ '#68D391' if row.battery >= 70 else '#F6AD55' }};"></div>
+                                            </div>
+                                            <span class="bar-label">{{ row.battery }}%</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="bar-cell">
+                                            <div class="mini-bar">
+                                                <div class="mini-bar-fill" style="width:{{ row.moisture }}%; background:{{ '#ECC94B' if row.moisture >= 50 else '#ED8936' }};"></div>
+                                            </div>
+                                            <span class="bar-label">{{ row.moisture }}%</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="temp-cell {{ 'high' if row.temp_high else 'normal' }}">&#x1f321; {{ row.temp }}&deg;F</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
