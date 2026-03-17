@@ -23,11 +23,30 @@ source venv/bin/activate
 python app.py
 ```
 
-Open [http://127.0.0.1:5000](http://127.0.0.1:5000) in your browser.
+Open [http://127.0.0.1:5001](http://127.0.0.1:5001) in your browser.
 
-## To exit virtual environment
+## Seeding Test Data
+
+To populate the database with 60 days of realistic sensor data:
 
 ```bash
-deactivate
+FLASK_DEBUG=1 python -c "from backend.scripts.seed_db import seed_db; seed_db()"
 ```
-then press "enter"
+
+Or via the API (debug mode only):
+
+```bash
+curl -X POST http://localhost:5001/api/seed -H "Content-Type: application/json" -d '{"interval_minutes": 30}'
+```
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/health` | GET | System health check |
+| `/api/nodes` | GET | List all sensor nodes |
+| `/api/nodes` | POST | Register a new node |
+| `/api/sensor/latest` | GET | Latest reading per node |
+| `/api/sensor/history` | GET | Aggregated historical data |
+| `/api/sensor/reading` | POST | Ingest a sensor reading |
+| `/api/seed` | POST | Reset and seed database (debug only) |

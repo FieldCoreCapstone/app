@@ -1,8 +1,8 @@
 # Virtual environment
 venv/
 
-# Claude Code
-.claude/
+# Database
+*.db
 
 # Python
 __pycache__/
@@ -10,6 +10,11 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+
+# AI / Tooling
+.tac/
+.claude/
 
 # OS
 .DS_Store

@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Field Sensor Dashboard</title>
+    <title>FieldCore — Sensor Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <div class="dashboard">
@@ -33,12 +35,12 @@
                     </div>
 
                     <div class="canvas-wrap">
-                        <canvas id="sensorMap" data-nodes='{{ nodes | tojson }}'></canvas>
+                        <canvas id="sensorMap" data-nodes="{{ nodes | tojson | e }}"></canvas>
                     </div>
                 </div>
             </div>
 
-            <!-- Right: Sensor Data Table -->
+            <!-- Right column: Table + Chart -->
             <div class="col-data">
                 <div class="card data-card">
                     <div class="card-title">Sensor Data</div>
@@ -53,7 +55,7 @@
                                     <th>Temperature</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="sensorTableBody">
                                 {% for row in table_data %}
                                 <tr>
                                     <td class="node-id">{{ row.node_id }}</td>
@@ -68,18 +70,26 @@
                                     <td>
                                         <div class="bar-cell">
                                             <div class="mini-bar">
-                                                <div class="mini-bar-fill" style="width:{{ row.moisture }}%; background:{{ '#ECC94B' if row.moisture >= 50 else '#ED8936' }};"></div>
+                                                <div class="mini-bar-fill" style="width:{{ row.moisture }}%; background:{{ '#48BB78' if row.moisture >= 60 else '#ECC94B' if row.moisture >= 40 else '#ED8936' if row.moisture >= 20 else '#E53E3E' }};"></div>
                                             </div>
                                             <span class="bar-label">{{ row.moisture }}%</span>
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="temp-cell {{ 'high' if row.temp_high else 'normal' }}">&#x1f321; {{ row.temp }}&deg;F</span>
+                                        <span class="temp-cell {{ 'high' if row.temp_high else 'normal' }}">&#x1f321; {{ row.temp }}&deg;C</span>
                                     </td>
                                 </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- Historical chart -->
+                <div class="card chart-card">
+                    <div class="card-title">Historical Trends</div>
+                    <div class="chart-wrap">
+                        <canvas id="historyChart"></canvas>
                     </div>
                 </div>
             </div>
