@@ -1,0 +1,285 @@
+/* ── Reset & Variables ──────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg: #F5F7FA;
+    --card-bg: #FFFFFF;
+    --border: #E8ECF0;
+    --text-dark: #1A202C;
+    --text-mid: #4A5568;
+    --text-light: #A0AEC0;
+    --accent: #1A202C;
+    --accent-fg: #FFFFFF;
+    --btn-bg: #FFFFFF;
+    --btn-border: #E2E8F0;
+    --map-bg: #E8F5E9;
+    --c-low: #E53E3E;
+    --c-fair: #ED8936;
+    --c-good: #ECC94B;
+    --c-optimal: #48BB78;
+    --c-bat-ok: #68D391;
+    --c-bat-warn: #F6AD55;
+    --row-alt: #FAFBFC;
+}
+
+html, body {
+    height: 100%;
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text-dark);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ── Dashboard shell ───────────────────────────────────────────────────── */
+.dashboard {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 20px 28px 24px;
+    gap: 16px;
+    overflow: hidden;
+}
+
+/* ── Time-range bar ────────────────────────────────────────────────────── */
+.time-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 4px;
+    height: 44px;
+    flex-shrink: 0;
+}
+
+.time-btn {
+    height: 36px;
+    min-width: 80px;
+    padding: 0 16px;
+    border: 1px solid var(--btn-border);
+    border-radius: 8px;
+    background: var(--btn-bg);
+    color: var(--text-mid);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    user-select: none;
+}
+
+.time-btn:hover {
+    background: #EDF2F7;
+}
+
+.time-btn.active {
+    background: var(--accent);
+    color: var(--accent-fg);
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+/* ── Card ──────────────────────────────────────────────────────────────── */
+.card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 2px 20px rgba(0, 0, 0, 0.07);
+    padding: 18px 20px;
+}
+
+/* ── Two-column body ───────────────────────────────────────────────────── */
+.body-columns {
+    display: flex;
+    gap: 16px;
+    flex: 1;
+    min-height: 0;
+}
+
+.col-map {
+    flex: 55;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.col-data {
+    flex: 45;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+/* ── Map card ──────────────────────────────────────────────────────────── */
+.map-card {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 12px;
+}
+
+.map-card .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.legend-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 12px;
+    color: var(--text-mid);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.legend-dot {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.legend-dot.low     { color: var(--c-low); }
+.legend-dot.fair    { color: var(--c-fair); }
+.legend-dot.good    { color: var(--c-good); }
+.legend-dot.optimal { color: var(--c-optimal); }
+
+.canvas-wrap {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+}
+
+.canvas-wrap canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+}
+
+/* ── Data card ─────────────────────────────────────────────────────────── */
+.data-card {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+.data-card .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 12px;
+}
+
+.table-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Custom scrollbar */
+.table-scroll::-webkit-scrollbar {
+    width: 6px;
+}
+.table-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+.table-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+/* ── Table ─────────────────────────────────────────────────────────────── */
+.sensor-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.sensor-table th {
+    position: sticky;
+    top: 0;
+    background: var(--card-bg);
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 4px 8px 8px;
+    z-index: 1;
+}
+
+.sensor-table td {
+    padding: 0 8px;
+    height: 40px;
+    vertical-align: middle;
+    font-size: 13px;
+}
+
+.sensor-table tbody tr:nth-child(odd) {
+    background: var(--row-alt);
+    border-radius: 6px;
+}
+
+/* Rounded row edges via pseudo approach */
+.sensor-table tbody tr:nth-child(odd) td:first-child {
+    border-radius: 6px 0 0 6px;
+}
+.sensor-table tbody tr:nth-child(odd) td:last-child {
+    border-radius: 0 6px 6px 0;
+}
+
+.node-id {
+    font-weight: 500;
+    color: var(--text-dark);
+}
+
+/* ── Mini progress bars ────────────────────────────────────────────────── */
+.bar-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.mini-bar {
+    width: 54px;
+    height: 6px;
+    background: #E2E8F0;
+    border-radius: 3px;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.mini-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+.bar-label {
+    font-size: 12px;
+    color: var(--text-mid);
+}
+
+/* ── Temperature ───────────────────────────────────────────────────────── */
+.temp-cell {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.temp-cell.normal {
+    color: var(--c-good);
+}
+
+.temp-cell.high {
+    color: var(--c-low);
+}
