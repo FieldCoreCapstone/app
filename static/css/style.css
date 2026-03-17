@@ -283,3 +283,50 @@ html, body {
 .temp-cell.high {
     color: var(--c-low);
 }
+
+/* ── Chart card ───────────────────────────────────────────────────────── */
+.chart-card {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    min-height: 220px;
+}
+
+.chart-card .card-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: 8px;
+}
+
+.chart-wrap {
+    flex: 1;
+    position: relative;
+    min-height: 180px;
+}
+
+.chart-wrap canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* ── Status indicator ─────────────────────────────────────────────────── */
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    background: var(--c-optimal);
+    animation: pulse 2s infinite;
+}
+
+.status-dot.stale {
+    background: var(--c-fair);
+    animation: none;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}

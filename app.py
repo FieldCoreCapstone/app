@@ -1,51 +1,152 @@
-from flask import Flask, render_template, jsonify
+"""FieldCore — Unified Flask App (Dashboard + API)."""
 
-app = Flask(__name__)
+import logging
+import os
 
-# ── Sensor node data ─────────────────────────────────────────────────────────
-NODES = [
-    {"id": "001", "x": 0.12, "y": 0.28, "moisture": "optimal"},
-    {"id": "002", "x": 0.28, "y": 0.40, "moisture": "fair"},
-    {"id": "003", "x": 0.43, "y": 0.26, "moisture": "optimal"},
-    {"id": "004", "x": 0.55, "y": 0.42, "moisture": "low"},
-    {"id": "005", "x": 0.78, "y": 0.20, "moisture": "optimal"},
-    {"id": "006", "x": 0.13, "y": 0.62, "moisture": "optimal"},
-    {"id": "007", "x": 0.30, "y": 0.68, "moisture": "fair"},
-    {"id": "008", "x": 0.50, "y": 0.65, "moisture": "good"},
-    {"id": "009", "x": 0.65, "y": 0.72, "moisture": "optimal"},
-    {"id": "010", "x": 0.82, "y": 0.65, "moisture": "low"},
-]
+from flask import Flask, jsonify, render_template, request
+from flask_cors import CORS
 
-TABLE_DATA = [
-    {"node_id": "Node-001", "battery": 95, "moisture": 78, "temp": 72, "temp_high": False},
-    {"node_id": "Node-002", "battery": 87, "moisture": 45, "temp": 68, "temp_high": False},
-    {"node_id": "Node-003", "battery": 92, "moisture": 62, "temp": 75, "temp_high": False},
-    {"node_id": "Node-004", "battery": 78, "moisture": 25, "temp": 82, "temp_high": True},
-    {"node_id": "Node-005", "battery": 88, "moisture": 88, "temp": 70, "temp_high": False},
-    {"node_id": "Node-006", "battery": 91, "moisture": 71, "temp": 73, "temp_high": False},
-    {"node_id": "Node-007", "battery": 65, "moisture": 33, "temp": 79, "temp_high": False},
-    {"node_id": "Node-008", "battery": 94, "moisture": 55, "temp": 71, "temp_high": False},
-    {"node_id": "Node-009", "battery": 89, "moisture": 62, "temp": 69, "temp_high": False},
-    {"node_id": "Node-010", "battery": 72, "moisture": 15, "temp": 85, "temp_high": True},
-]
+from backend import config
+from backend.models.database import get_latest_readings
+from backend.routes.health import health_bp
+from backend.routes.nodes import nodes_bp
+from backend.routes.sensors import sensors_bp
+from backend.scripts.init_db import init_db
 
-TIME_RANGES = ["Live", "24 Hours", "7 Days", "1 Month", "3 Months", "1 Year"]
+logger = logging.getLogger(__name__)
 
 
-@app.route("/")
-def index():
-    return render_template(
-        "index.html",
-        nodes=NODES,
-        table_data=TABLE_DATA,
-        time_ranges=TIME_RANGES,
-    )
+def normalize_moisture(raw, raw_min=None, raw_max=None):
+    """Convert raw capacitance value (0-700) to percentage (0-100)."""
+    lo = raw_min if raw_min is not None else config.MOISTURE_RAW_MIN
+    hi = raw_max if raw_max is not None else config.MOISTURE_RAW_MAX
+    if hi <= lo:
+        return 0
+    return max(0, min(100, round((raw - lo) / (hi - lo) * 100)))
 
 
-@app.route("/api/sensors")
-def api_sensors():
-    return jsonify({"nodes": NODES, "table": TABLE_DATA})
+def moisture_level(pct):
+    """Map a 0-100 moisture percentage to a human-readable level."""
+    if pct >= 60:
+        return "optimal"
+    elif pct >= 40:
+        return "good"
+    elif pct >= 20:
+        return "fair"
+    return "low"
+
+
+def normalize_coordinates(readings):
+    """Normalize lat/lon coordinates to 0.0-1.0 range for canvas rendering."""
+    xs = [r.get("x") for r in readings if r.get("x") is not None]
+    ys = [r.get("y") for r in readings if r.get("y") is not None]
+
+    if not xs or not ys:
+        return readings
+
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+
+    pad = 0.1
+    x_range = x_max - x_min or 1
+    y_range = y_max - y_min or 1
+
+    for r in readings:
+        if r.get("x") is not None:
+            r["x"] = pad + (1 - 2 * pad) * (r["x"] - x_min) / x_range
+        if r.get("y") is not None:
+            r["y"] = pad + (1 - 2 * pad) * (r["y"] - y_min) / y_range
+
+    return readings
+
+
+def create_app():
+    app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024  # 1 MB max request body
+
+    if config.DEBUG:
+        CORS(app)
+    else:
+        CORS(app, origins=os.environ.get("CORS_ORIGINS", "http://localhost:5001").split(","))
+
+    # Initialize database if it doesn't exist
+    if not os.path.exists(config.DATABASE_PATH):
+        init_db()
+
+    # ── Dashboard (frontend) ────────────────────────────────────────────
+    @app.route("/")
+    def index():
+        """Serve the main sensor dashboard, backed by real database data."""
+        readings = get_latest_readings()
+        readings = normalize_coordinates(readings)
+
+        nodes = []
+        for r in readings:
+            raw_moisture = r.get("moisture") or 0
+            pct = normalize_moisture(raw_moisture)
+
+            nodes.append({
+                "id": r["node_id"],
+                "x": r.get("x", 0.5),
+                "y": r.get("y", 0.5),
+                "moisture": moisture_level(pct),
+            })
+
+        table_data = []
+        for r in readings:
+            battery = r.get("battery") or 0
+            raw_moisture = r.get("moisture") or 0
+            pct = normalize_moisture(raw_moisture)
+            temp = r.get("temperature") or 0
+            table_data.append({
+                "node_id": r["node_id"],
+                "battery": battery,
+                "moisture": pct,
+                "temp": round(temp, 1),
+                "temp_high": temp > 30,
+            })
+
+        time_ranges = ["Live", "24 Hours", "7 Days", "1 Month", "3 Months", "1 Year"]
+
+        return render_template(
+            "index.html",
+            nodes=nodes,
+            table_data=table_data,
+            time_ranges=time_ranges,
+        )
+
+    # ── Seed endpoint (dev tool) ────────────────────────────────────────
+    @app.route("/api/seed", methods=["POST"])
+    def trigger_seed():
+        if not config.DEBUG:
+            return jsonify({"error": "Seed endpoint is only available in debug mode"}), 403
+
+        from backend.scripts.seed_db import seed_db
+        data = request.get_json() or {}
+        interval = data.get("interval_minutes", 30)
+
+        if interval not in [15, 30]:
+            return jsonify({"error": "Interval must be 15 or 30"}), 400
+
+        try:
+            seed_db(interval_minutes=interval)
+            return jsonify({"status": "success", "message": f"Database wiped and seeded with {interval}m intervals"}), 200
+        except Exception as e:
+            logger.exception("Seed failed")
+            return jsonify({"error": str(e)}), 500
+
+    # ── API blueprints ──────────────────────────────────────────────────
+    app.register_blueprint(health_bp)
+    app.register_blueprint(nodes_bp)
+    app.register_blueprint(sensors_bp)
+
+    return app
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    logging.basicConfig(
+        level=logging.DEBUG if config.DEBUG else logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+    app = create_app()
+    app.run(host="0.0.0.0", port=5001, debug=config.DEBUG)
