@@ -1,0 +1,15 @@
+[Unit]
+Description=FieldCore Flask Web App
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/cap-proj/app
+Environment=FIELDCORE_DB=/home/pi/cap-proj/app/backend/sensors.db
+ExecStart=/usr/bin/python3 app.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
