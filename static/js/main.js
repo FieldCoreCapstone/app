@@ -34,6 +34,17 @@ const CHART_COLORS = [
 let historyChart = null;
 let refreshTimer = null;
 let currentRange = 'Live';
+let leafletMap = null;
+let leafletMarkers = {};  // node_id -> L.circleMarker
+let activeView = 'map'; // 'canvas' or 'map'
+let knownNodeIds = null;   // Set of node_ids for fitBounds tracking
+let mapControlPanel = null; // custom L.Control for tile/heatmap/metric
+let heatmapOverlay = null; // L.imageOverlay for IDW heatmap
+let heatmapLegend = null;  // L.Control for color bar legend
+let activeMetric = 'moisture'; // 'moisture' or 'temperature'
+let lastReadings = null;   // most recent readings for metric-switch re-renders
+let heatmapBorderBlack = null;  // L.rectangle — black dashes
+let heatmapBorderYellow = null; // L.rectangle — yellow dashes (offset)
 
 /* ── Moisture helpers ─────────────────────────────────────────────────── */
 function normalizeMoisture(raw) {
@@ -54,6 +65,39 @@ function moistureBarColor(pct) {
     return '#E53E3E';
 }
 
+/* ── Temperature color helper ────────────────────────────────────────── */
+function temperatureColor(temp) {
+    if (temp == null) return '#A0AEC0'; // gray for no data
+    // Blue (cold ≤15°C) → Yellow (moderate ~22°C) → Red (hot ≥30°C)
+    const clamped = Math.max(15, Math.min(30, temp));
+    const t = (clamped - 15) / 15; // 0..1
+    if (t <= 0.5) {
+        // Blue to Yellow (0..0.5)
+        const s = t * 2;
+        const r = Math.round(66 + s * (236 - 66));
+        const g = Math.round(153 + s * (201 - 153));
+        const b = Math.round(225 + s * (75 - 225));
+        return `rgb(${r},${g},${b})`;
+    } else {
+        // Yellow to Red (0.5..1)
+        const s = (t - 0.5) * 2;
+        const r = Math.round(236 + s * (229 - 236));
+        const g = Math.round(201 + s * (62 - 201));
+        const b = Math.round(75 + s * (62 - 75));
+        return `rgb(${r},${g},${b})`;
+    }
+}
+
+function getMarkerColor(r) {
+    if (activeMetric === 'temperature') {
+        return temperatureColor(r.temperature);
+    }
+    const rawMoisture = r.moisture || 0;
+    const pct = normalizeMoisture(rawMoisture);
+    const level = moistureLevel(pct);
+    return MOISTURE_COLOR[level] || '#A0AEC0';
+}
+
 /* ── API helpers ──────────────────────────────────────────────────────── */
 async function fetchLatest() {
     const resp = await fetch('/api/sensor/latest');
@@ -71,8 +115,8 @@ async function fetchHistory(range, nodeId) {
 
 /* ── Coordinate normalization ─────────────────────────────────────────── */
 function normalizeCoords(readings) {
-    const xs = readings.map(r => r.x).filter(v => v != null);
-    const ys = readings.map(r => r.y).filter(v => v != null);
+    const xs = readings.map(r => r.latitude).filter(v => v != null);
+    const ys = readings.map(r => r.longitude).filter(v => v != null);
 
     if (xs.length === 0 || ys.length === 0) return readings;
 
@@ -84,8 +128,8 @@ function normalizeCoords(readings) {
 
     return readings.map(r => ({
         ...r,
-        nx: pad + (1 - 2 * pad) * (r.x - xMin) / xRange,
-        ny: pad + (1 - 2 * pad) * (r.y - yMin) / yRange,
+        nx: pad + (1 - 2 * pad) * (r.latitude - xMin) / xRange,
+        ny: pad + (1 - 2 * pad) * (r.longitude - yMin) / yRange,
     }));
 }
 
@@ -210,7 +254,7 @@ function updateTable(readings) {
         const batColor = battery >= 70 ? '#68D391' : '#F6AD55';
         const safeNodeId = escapeHtml(r.node_id || '');
 
-        return `<tr>
+        return `<tr id="row-${safeNodeId}">
             <td class="node-id">${safeNodeId}</td>
             <td>
                 <div class="bar-cell">
@@ -325,14 +369,410 @@ function renderChart(historyData) {
     });
 }
 
+/* ── Leaflet map ─────────────────────────────────────────────────────── */
+let osmLayer = null;
+let satelliteLayer = null;
+let heatmapEnabled = true; // heatmap on by default
+
+function initLeafletMap() {
+    osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors',
+        maxZoom: 19,
+    });
+
+    satelliteLayer = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+            attribution: '&copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics',
+            maxZoom: 18,
+        }
+    );
+
+    leafletMap = L.map('leafletMap', {
+        layers: [osmLayer],
+        zoomControl: true,
+        minZoom: 13,
+    });
+
+    // Custom pane for heatmap — between tiles (200) and overlayPane (400)
+    leafletMap.createPane('heatmapPane');
+    leafletMap.getPane('heatmapPane').style.zIndex = 350;
+    leafletMap.getPane('heatmapPane').style.pointerEvents = 'none';
+
+    // Set a default view until markers load
+    leafletMap.setView([37.421, -91.565], 14);
+
+    // Initialize custom control panel and heatmap legend
+    initMapControlPanel();
+    initHeatmapLegend();
+}
+
+/* ── Custom map control panel ────────────────────────────────────────── */
+const MapControlPanel = L.Control.extend({
+    options: { position: 'topright' },
+
+    onAdd: function () {
+        const container = L.DomUtil.create('div', 'map-control-panel');
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
+
+        container.innerHTML =
+            '<div class="mcp-section">' +
+                '<div class="mcp-label">Tiles</div>' +
+                '<div class="mcp-btn-group">' +
+                    '<button class="mcp-btn active" data-tile="street">Street</button>' +
+                    '<button class="mcp-btn" data-tile="satellite">Satellite</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="mcp-divider"></div>' +
+            '<div class="mcp-section">' +
+                '<div class="mcp-btn-group">' +
+                    '<button class="mcp-btn mcp-toggle active" data-action="heatmap">Heatmap</button>' +
+                '</div>' +
+            '</div>' +
+            '<div class="mcp-divider"></div>' +
+            '<div class="mcp-section">' +
+                '<div class="mcp-label">Metric</div>' +
+                '<div class="mcp-btn-group">' +
+                    '<button class="mcp-btn active" data-metric="moisture">Moisture</button>' +
+                    '<button class="mcp-btn" data-metric="temperature">Temp</button>' +
+                '</div>' +
+            '</div>';
+
+        // Tile layer buttons
+        container.querySelectorAll('[data-tile]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tile = btn.dataset.tile;
+                container.querySelectorAll('[data-tile]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                if (tile === 'satellite') {
+                    leafletMap.removeLayer(osmLayer);
+                    if (!leafletMap.hasLayer(satelliteLayer)) leafletMap.addLayer(satelliteLayer);
+                } else {
+                    leafletMap.removeLayer(satelliteLayer);
+                    if (!leafletMap.hasLayer(osmLayer)) leafletMap.addLayer(osmLayer);
+                }
+            });
+        });
+
+        // Heatmap toggle
+        container.querySelector('[data-action="heatmap"]').addEventListener('click', function () {
+            this.classList.toggle('active');
+            heatmapEnabled = this.classList.contains('active');
+            if (heatmapEnabled) {
+                if (heatmapOverlay) {
+                    heatmapOverlay.addTo(leafletMap);
+                    if (heatmapBorderBlack) heatmapBorderBlack.addTo(leafletMap);
+                    if (heatmapBorderYellow) heatmapBorderYellow.addTo(leafletMap);
+                }
+                if (heatmapLegend) heatmapLegend.show();
+                if (lastReadings) updateHeatmap(lastReadings);
+            } else {
+                if (heatmapOverlay) leafletMap.removeLayer(heatmapOverlay);
+                if (heatmapBorderBlack) leafletMap.removeLayer(heatmapBorderBlack);
+                if (heatmapBorderYellow) leafletMap.removeLayer(heatmapBorderYellow);
+                if (heatmapLegend) heatmapLegend.hide();
+            }
+        });
+
+        // Metric buttons
+        container.querySelectorAll('[data-metric]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const metric = btn.dataset.metric;
+                if (metric === activeMetric) return;
+                container.querySelectorAll('[data-metric]').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                activeMetric = metric;
+                if (lastReadings) {
+                    updateHeatmap(lastReadings);
+                    updateLeafletMarkers(lastReadings);
+                }
+            });
+        });
+
+        return container;
+    },
+});
+
+function initMapControlPanel() {
+    if (!leafletMap || mapControlPanel) return;
+    mapControlPanel = new MapControlPanel();
+    mapControlPanel.addTo(leafletMap);
+}
+
+function updateLeafletMarkers(readings) {
+    if (!leafletMap) return;
+
+    const currentIds = new Set(readings.map(r => r.node_id));
+
+    // Remove markers for nodes no longer present
+    for (const id of Object.keys(leafletMarkers)) {
+        if (!currentIds.has(id)) {
+            leafletMap.removeLayer(leafletMarkers[id]);
+            delete leafletMarkers[id];
+        }
+    }
+
+    readings.forEach(r => {
+        const lat = r.latitude;
+        const lng = r.longitude;
+        if (lat == null || lng == null) return;
+
+        const color = getMarkerColor(r);
+
+        if (leafletMarkers[r.node_id]) {
+            // Update existing marker
+            const marker = leafletMarkers[r.node_id];
+            marker.setLatLng([lat, lng]);
+            marker.setStyle({ fillColor: color });
+            // Update popup content if bound
+            if (marker.getPopup()) {
+                marker.getPopup().setContent(buildPopupContent(r));
+            }
+        } else {
+            // Create new marker
+            const marker = L.circleMarker([lat, lng], {
+                radius: 14,
+                fillColor: color,
+                color: '#FFFFFF',
+                weight: 3,
+                opacity: 1,
+                fillOpacity: 0.9,
+            }).addTo(leafletMap);
+            marker.bindPopup(buildPopupContent(r), { maxWidth: 220 });
+            leafletMarkers[r.node_id] = marker;
+        }
+    });
+
+    // Fit bounds only on first render or when node set changes
+    const newNodeIds = JSON.stringify([...currentIds].sort());
+    if (knownNodeIds !== newNodeIds) {
+        knownNodeIds = newNodeIds;
+        const markers = Object.values(leafletMarkers);
+        if (markers.length > 0) {
+            const group = L.featureGroup(markers);
+            const bounds = group.getBounds();
+            // Tight fit to the node area
+            leafletMap.fitBounds(bounds, { padding: [20, 20], maxZoom: 16 });
+            // Lock pan to a padded bounding box around the nodes
+            const paddedBounds = bounds.pad(0.5); // 50% padding around node cluster
+            leafletMap.setMaxBounds(paddedBounds);
+        }
+    }
+}
+
+function buildPopupContent(r) {
+    const name = escapeHtml(r.name || r.node_id);
+    const nodeId = escapeHtml(r.node_id || '');
+    const rawMoisture = r.moisture;
+    const moisture = rawMoisture != null ? normalizeMoisture(rawMoisture) + '%' : 'No data';
+    const temp = r.temperature != null ? r.temperature.toFixed(1) + '°C' : 'No data';
+    const battery = r.battery != null ? r.battery + '%' : 'No data';
+    const rssi = r.signal_rssi != null ? r.signal_rssi + ' dBm' : 'No data';
+
+    return `<div class="map-popup">
+        <strong>${name}</strong>
+        <div class="popup-fields">
+            <span>Moisture: ${moisture}</span>
+            <span>Temp: ${temp}</span>
+            <span>Battery: ${battery}</span>
+            <span>Signal: ${rssi}</span>
+        </div>
+        <a href="#" class="popup-link" onclick="scrollToNode('${nodeId}'); return false;">View in table</a>
+    </div>`;
+}
+
+function scrollToNode(nodeId) {
+    const row = document.getElementById('row-' + nodeId);
+    if (!row) return;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    row.classList.add('row-highlight');
+    setTimeout(() => row.classList.remove('row-highlight'), 2000);
+}
+
+/* ── Heatmap overlay ─────────────────────────────────────────────────── */
+function updateHeatmap(readings) {
+    if (!leafletMap) return;
+
+    lastReadings = readings;
+    const result = renderHeatmapCanvas(readings, activeMetric, HEATMAP_GRID_SIZE);
+
+    if (!result) {
+        // Not enough data — remove overlay if it exists
+        if (heatmapOverlay && leafletMap.hasLayer(heatmapOverlay)) {
+            heatmapOverlay.setUrl('data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+        }
+        return;
+    }
+
+    const bounds = L.latLngBounds(
+        [result.bounds.south, result.bounds.west],
+        [result.bounds.north, result.bounds.east]
+    );
+
+    if (!heatmapOverlay) {
+        // Create overlay on first data
+        heatmapOverlay = L.imageOverlay(result.dataUrl, bounds, {
+            opacity: HEATMAP_OPACITY,
+            pane: 'heatmapPane',
+            interactive: false,
+        });
+        // Add to map immediately if heatmap is enabled (on by default)
+        if (heatmapEnabled) {
+            heatmapOverlay.addTo(leafletMap);
+            if (heatmapLegend) heatmapLegend.show();
+        }
+
+        // Dashed border — two overlapping rectangles for alternating black/yellow
+        const dashOpts = {
+            fill: false,
+            weight: 2,
+            opacity: 0.8,
+            interactive: false,
+        };
+        heatmapBorderBlack = L.rectangle(bounds, {
+            ...dashOpts,
+            color: '#1A202C',
+            dashArray: '8, 8',
+        });
+        heatmapBorderYellow = L.rectangle(bounds, {
+            ...dashOpts,
+            color: '#ECC94B',
+            dashArray: '8, 8',
+            dashOffset: '8',
+        });
+        if (heatmapEnabled) {
+            heatmapBorderBlack.addTo(leafletMap);
+            heatmapBorderYellow.addTo(leafletMap);
+        }
+    } else {
+        heatmapOverlay.setUrl(result.dataUrl);
+        heatmapOverlay.setBounds(bounds);
+        if (heatmapBorderBlack) heatmapBorderBlack.setBounds(bounds);
+        if (heatmapBorderYellow) heatmapBorderYellow.setBounds(bounds);
+    }
+
+    // Update legend if it exists
+    if (heatmapLegend && heatmapLegend.update) {
+        heatmapLegend.update(activeMetric, result.min, result.max);
+    }
+}
+
+/* ── Heatmap legend control ──────────────────────────────────────────── */
+const HeatmapLegend = L.Control.extend({
+    options: { position: 'bottomright' },
+
+    onAdd: function () {
+        const container = L.DomUtil.create('div', 'heatmap-legend');
+        L.DomEvent.disableClickPropagation(container);
+
+        container.innerHTML =
+            '<div class="heatmap-legend-title">Moisture (%)</div>' +
+            '<div class="heatmap-legend-bar"></div>' +
+            '<div class="heatmap-legend-labels">' +
+                '<span class="heatmap-legend-min">0</span>' +
+                '<span class="heatmap-legend-max">100</span>' +
+            '</div>';
+
+        this._container = container;
+        return container;
+    },
+
+    update: function (metric, min, max) {
+        if (!this._container) return;
+
+        const title = this._container.querySelector('.heatmap-legend-title');
+        const bar = this._container.querySelector('.heatmap-legend-bar');
+        const minLabel = this._container.querySelector('.heatmap-legend-min');
+        const maxLabel = this._container.querySelector('.heatmap-legend-max');
+
+        if (metric === 'moisture') {
+            title.textContent = 'Moisture (%)';
+            bar.style.background = 'linear-gradient(to right, #E53E3E, #ED8936, #ECC94B, #48BB78)';
+            minLabel.textContent = Math.round(min) + '%';
+            maxLabel.textContent = Math.round(max) + '%';
+        } else {
+            title.textContent = 'Temperature (\u00B0C)';
+            bar.style.background = 'linear-gradient(to right, #4299E1, #ECC94B, #E53E3E)';
+            minLabel.textContent = min.toFixed(1) + '\u00B0';
+            maxLabel.textContent = max.toFixed(1) + '\u00B0';
+        }
+    },
+
+    show: function () {
+        if (this._container) this._container.style.display = '';
+    },
+
+    hide: function () {
+        if (this._container) this._container.style.display = 'none';
+    },
+});
+
+function initHeatmapLegend() {
+    if (!leafletMap || heatmapLegend) return;
+
+    heatmapLegend = new HeatmapLegend();
+    heatmapLegend.addTo(leafletMap);
+    // Show by default since heatmap is on by default
+    if (!heatmapEnabled) heatmapLegend.hide();
+}
+
+/* ── Metric toggle (now handled by MapControlPanel on the map) ──────── */
+
+/* ── View toggle ─────────────────────────────────────────────────────── */
+function setupViewToggle() {
+    document.querySelectorAll('.view-toggle .time-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.dataset.view;
+            if (view === activeView) return;
+
+            // Update button states
+            document.querySelectorAll('.view-toggle .time-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            activeView = view;
+
+            const canvasWrap = document.querySelector('.canvas-wrap');
+            const leafletWrap = document.getElementById('leafletMap');
+
+            if (view === 'map') {
+                canvasWrap.style.display = 'none';
+                leafletWrap.style.display = 'block';
+                if (!leafletMap) {
+                    initLeafletMap();
+                    // Fetch and render markers + heatmap immediately
+                    fetchLatest().then(readings => {
+                        updateLeafletMarkers(readings);
+                        updateHeatmap(readings);
+                    }).catch(() => {});
+                } else {
+                    leafletMap.invalidateSize();
+                }
+            } else {
+                leafletWrap.style.display = 'none';
+                canvasWrap.style.display = '';
+                refreshDashboard();
+            }
+        });
+    });
+}
+
 /* ── Refresh logic ────────────────────────────────────────────────────── */
 async function refreshDashboard() {
     try {
         const readings = await fetchLatest();
 
-        // Update map
-        const canvas = document.getElementById('sensorMap');
-        if (canvas) drawMap(canvas, readings);
+        // Update canvas map
+        if (activeView === 'canvas') {
+            const canvas = document.getElementById('sensorMap');
+            if (canvas) drawMap(canvas, readings);
+        }
+
+        // Update Leaflet map
+        if (activeView === 'map') {
+            updateLeafletMarkers(readings);
+            updateHeatmap(readings);
+        }
 
         // Update table
         updateTable(readings);
@@ -390,19 +830,16 @@ function setupTimeButtons() {
 
 /* ── Init ─────────────────────────────────────────────────────────────── */
 function init() {
-    const canvas = document.getElementById('sensorMap');
-    if (canvas) {
-        // Initial draw from server-rendered data
-        try {
-            const nodes = JSON.parse(canvas.dataset.nodes);
-            drawMapFromNodes(canvas, nodes);
-        } catch (e) {
-            // If no initial data, fetch from API
-            refreshDashboard();
-        }
-    }
+    // Initialize Leaflet map as the default view
+    initLeafletMap();
+    fetchLatest().then(readings => {
+        updateLeafletMarkers(readings);
+        updateHeatmap(readings);
+        updateTable(readings);
+    }).catch(() => {});
 
     setupTimeButtons();
+    setupViewToggle();
 
     // Start auto-refresh in "Live" mode
     startAutoRefresh();

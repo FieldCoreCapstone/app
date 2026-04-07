@@ -37,7 +37,7 @@ def seed_db(interval_minutes=30, db_path=None):
 
         logger.info("Inserting nodes...")
         cursor.executemany(
-            "INSERT INTO nodes (node_id, name, x, y, installed, notes) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO nodes (node_id, name, latitude, longitude, installed, notes) VALUES (?, ?, ?, ?, ?, ?)",
             nodes
         )
 

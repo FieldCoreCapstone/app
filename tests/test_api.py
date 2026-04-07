@@ -18,8 +18,8 @@ class TestNodes:
         resp = client.post("/api/nodes", json={
             "node_id": "Node-001",
             "name": "South Field A",
-            "x": 38.94,
-            "y": -92.33,
+            "latitude": 38.94,
+            "longitude": -92.33,
         })
         assert resp.status_code == 201
         data = resp.get_json()
@@ -32,14 +32,14 @@ class TestNodes:
         assert "Missing required fields" in resp.get_json()["error"]
 
     def test_create_duplicate_node(self, client):
-        payload = {"node_id": "Node-001", "name": "A", "x": 0, "y": 0}
+        payload = {"node_id": "Node-001", "name": "A", "latitude": 0, "longitude": 0}
         client.post("/api/nodes", json=payload)
         resp = client.post("/api/nodes", json=payload)
         assert resp.status_code == 409
 
     def test_list_nodes_after_create(self, client):
-        client.post("/api/nodes", json={"node_id": "Node-001", "name": "A", "x": 0, "y": 0})
-        client.post("/api/nodes", json={"node_id": "Node-002", "name": "B", "x": 1, "y": 1})
+        client.post("/api/nodes", json={"node_id": "Node-001", "name": "A", "latitude": 0, "longitude": 0})
+        client.post("/api/nodes", json={"node_id": "Node-002", "name": "B", "latitude": 1, "longitude": 1})
         resp = client.get("/api/nodes")
         assert len(resp.get_json()) == 2
 
@@ -47,8 +47,8 @@ class TestNodes:
         resp = client.post("/api/nodes", json={
             "node_id": "Node-001",
             "name": "Bad Coords",
-            "x": "notanumber",
-            "y": 0,
+            "latitude": "notanumber",
+            "longitude": 0,
         })
         assert resp.status_code == 400
         assert "must be numbers" in resp.get_json()["error"]
@@ -57,8 +57,8 @@ class TestNodes:
         resp = client.post("/api/nodes", json={
             "node_id": "<script>alert(1)</script>",
             "name": "XSS attempt",
-            "x": 0,
-            "y": 0,
+            "latitude": 0,
+            "longitude": 0,
         })
         assert resp.status_code == 400
         assert "node_id must be" in resp.get_json()["error"]
@@ -67,8 +67,8 @@ class TestNodes:
         resp = client.post("/api/nodes", json={
             "node_id": "Node-001",
             "name": "",
-            "x": 0,
-            "y": 0,
+            "latitude": 0,
+            "longitude": 0,
         })
         assert resp.status_code == 400
         assert "name must be" in resp.get_json()["error"]
@@ -76,7 +76,7 @@ class TestNodes:
 
 class TestSensors:
     def _add_node(self, client):
-        client.post("/api/nodes", json={"node_id": "Node-001", "name": "A", "x": 0, "y": 0})
+        client.post("/api/nodes", json={"node_id": "Node-001", "name": "A", "latitude": 0, "longitude": 0})
 
     def test_latest_empty(self, client):
         resp = client.get("/api/sensor/latest")

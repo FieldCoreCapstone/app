@@ -25,7 +25,7 @@ def add_node():
     if not data:
         return jsonify({"error": "Request body must be JSON"}), 400
 
-    required = ["node_id", "name", "x", "y"]
+    required = ["node_id", "name", "latitude", "longitude"]
     missing = [f for f in required if f not in data]
     if missing:
         return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
@@ -39,17 +39,17 @@ def add_node():
         return jsonify({"error": f"name must be 1-{_MAX_NAME_LEN} characters"}), 400
 
     try:
-        x = float(data["x"])
-        y = float(data["y"])
+        latitude = float(data["latitude"])
+        longitude = float(data["longitude"])
     except (ValueError, TypeError):
-        return jsonify({"error": "x and y must be numbers"}), 400
+        return jsonify({"error": "latitude and longitude must be numbers"}), 400
 
     try:
         node = create_node(
             node_id=node_id,
             name=name,
-            x=x,
-            y=y,
+            latitude=latitude,
+            longitude=longitude,
             installed=data.get("installed"),
             notes=data.get("notes"),
         )

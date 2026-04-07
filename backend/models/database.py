@@ -46,11 +46,11 @@ def get_node(node_id, db_path=None):
         return dict(row) if row else None
 
 
-def create_node(node_id, name, x, y, installed=None, notes=None, db_path=None):
+def create_node(node_id, name, latitude, longitude, installed=None, notes=None, db_path=None):
     with get_db(db_path) as conn:
         conn.execute(
-            "INSERT INTO nodes (node_id, name, x, y, installed, notes) VALUES (?, ?, ?, ?, ?, ?)",
-            (node_id, name, x, y, installed, notes),
+            "INSERT INTO nodes (node_id, name, latitude, longitude, installed, notes) VALUES (?, ?, ?, ?, ?, ?)",
+            (node_id, name, latitude, longitude, installed, notes),
         )
         conn.commit()
         row = conn.execute("SELECT * FROM nodes WHERE node_id = ?", (node_id,)).fetchone()
@@ -75,7 +75,7 @@ def insert_reading(node_id, moisture, temperature, battery=None, signal_rssi=Non
 def get_latest_readings(db_path=None):
     """Return the most recent reading for every node, joined with node info."""
     sql = """
-        SELECT n.node_id, n.name, n.x, n.y,
+        SELECT n.node_id, n.name, n.latitude, n.longitude,
                r.temperature, r.moisture, r.battery, r.signal_rssi, r.timestamp
         FROM nodes n
         LEFT JOIN readings r ON r.node_id = n.node_id
