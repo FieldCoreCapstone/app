@@ -6,7 +6,9 @@
     <title>FieldCore — Sensor Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 </head>
 <body>
     <div class="dashboard">
@@ -24,19 +26,18 @@
             <!-- Left: Sensor Map -->
             <div class="col-map">
                 <div class="card map-card">
-                    <div class="card-title">Field Sensor Map</div>
-
-                    <div class="legend-row">
-                        <span>Moisture:</span>
-                        <span class="legend-item"><span class="legend-dot low">&#9679;</span> Low</span>
-                        <span class="legend-item"><span class="legend-dot fair">&#9679;</span> Fair</span>
-                        <span class="legend-item"><span class="legend-dot good">&#9679;</span> Good</span>
-                        <span class="legend-item"><span class="legend-dot optimal">&#9679;</span> Optimal</span>
+                    <div class="map-card-header">
+                        <div class="card-title">Field Sensor Map</div>
+                        <div class="view-toggle">
+                            <button class="time-btn" data-view="canvas">Canvas</button>
+                            <button class="time-btn active" data-view="map">Map</button>
+                        </div>
                     </div>
 
-                    <div class="canvas-wrap">
+                    <div class="canvas-wrap" style="display:none;">
                         <canvas id="sensorMap" data-nodes="{{ nodes | tojson | e }}"></canvas>
                     </div>
+                    <div id="leafletMap" class="leaflet-wrap"></div>
                 </div>
             </div>
 
@@ -96,6 +97,7 @@
         </div>
     </div>
 
+    <script src="{{ url_for('static', filename='js/heatmap.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

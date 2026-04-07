@@ -15,8 +15,8 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS nodes (
     node_id     TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
-    x           REAL NOT NULL,
-    y           REAL NOT NULL,
+    latitude    REAL NOT NULL,
+    longitude   REAL NOT NULL,
     installed   DATE,
     notes       TEXT
 );

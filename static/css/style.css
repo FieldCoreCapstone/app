@@ -152,10 +152,28 @@ html, body {
 .legend-dot.good    { color: var(--c-good); }
 .legend-dot.optimal { color: var(--c-optimal); }
 
+.map-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 4px;
+}
+
 .canvas-wrap {
     flex: 1;
     min-height: 0;
     position: relative;
+}
+
+.leaflet-wrap {
+    flex: 1;
+    min-height: 0;
+    border-radius: 8px;
+    overflow: hidden;
 }
 
 .canvas-wrap canvas {
@@ -308,6 +326,144 @@ html, body {
 .chart-wrap canvas {
     width: 100% !important;
     height: 100% !important;
+}
+
+/* ── Map control panel (on-map buttons) ───────────────────────────────── */
+.map-control-panel {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+    font-family: inherit;
+    min-width: 120px;
+}
+
+.mcp-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.mcp-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.mcp-btn-group {
+    display: flex;
+    gap: 3px;
+}
+
+.mcp-btn {
+    flex: 1;
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--btn-border);
+    border-radius: 6px;
+    background: var(--btn-bg);
+    color: var(--text-mid);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+}
+
+.mcp-btn:hover {
+    background: #EDF2F7;
+}
+
+.mcp-btn.active {
+    background: var(--accent);
+    color: var(--accent-fg);
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+.mcp-toggle {
+    width: 100%;
+}
+
+.mcp-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 6px 0;
+}
+
+/* ── Row highlight (popup → table link) ───────────────────────────────── */
+.row-highlight {
+    background-color: #FEFCBF !important;
+    transition: background-color 1.5s ease-out;
+}
+
+/* ── Map popup ────────────────────────────────────────────────────────── */
+.map-popup {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.map-popup strong {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+}
+
+.popup-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: var(--text-mid);
+    margin-bottom: 6px;
+}
+
+.popup-link {
+    display: inline-block;
+    font-size: 12px;
+    color: #3182CE;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.popup-link:hover {
+    text-decoration: underline;
+}
+
+/* ── Heatmap legend ──────────────────────────────────────────────────── */
+.heatmap-legend {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+    font-family: inherit;
+    min-width: 140px;
+}
+
+.heatmap-legend-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 6px;
+}
+
+.heatmap-legend-bar {
+    height: 12px;
+    border-radius: 4px;
+    background: linear-gradient(to right, #E53E3E, #ED8936, #ECC94B, #48BB78);
+}
+
+.heatmap-legend-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4px;
+    font-size: 10px;
+    color: var(--text-mid);
 }
 
 /* ── Status indicator ─────────────────────────────────────────────────── */

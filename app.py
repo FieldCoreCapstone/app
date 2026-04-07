@@ -38,8 +38,8 @@ def moisture_level(pct):
 
 def normalize_coordinates(readings):
     """Normalize lat/lon coordinates to 0.0-1.0 range for canvas rendering."""
-    xs = [r.get("x") for r in readings if r.get("x") is not None]
-    ys = [r.get("y") for r in readings if r.get("y") is not None]
+    xs = [r.get("latitude") for r in readings if r.get("latitude") is not None]
+    ys = [r.get("longitude") for r in readings if r.get("longitude") is not None]
 
     if not xs or not ys:
         return readings
@@ -52,10 +52,10 @@ def normalize_coordinates(readings):
     y_range = y_max - y_min or 1
 
     for r in readings:
-        if r.get("x") is not None:
-            r["x"] = pad + (1 - 2 * pad) * (r["x"] - x_min) / x_range
-        if r.get("y") is not None:
-            r["y"] = pad + (1 - 2 * pad) * (r["y"] - y_min) / y_range
+        if r.get("latitude") is not None:
+            r["latitude"] = pad + (1 - 2 * pad) * (r["latitude"] - x_min) / x_range
+        if r.get("longitude") is not None:
+            r["longitude"] = pad + (1 - 2 * pad) * (r["longitude"] - y_min) / y_range
 
     return readings
 
@@ -87,8 +87,8 @@ def create_app():
 
             nodes.append({
                 "id": r["node_id"],
-                "x": r.get("x", 0.5),
-                "y": r.get("y", 0.5),
+                "x": r.get("latitude", 0.5),
+                "y": r.get("longitude", 0.5),
                 "moisture": moisture_level(pct),
             })
 
