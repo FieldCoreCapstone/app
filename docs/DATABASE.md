@@ -22,8 +22,8 @@ The database uses a **normalized design** with two primary tables:
 | :--- | :--- | :--- | :--- |
 | `node_id` | TEXT | PRIMARY KEY | Unique sensor node identifier (e.g., `NORTH_01`) |
 | `name` | TEXT | NOT NULL | Human-readable name (e.g., "North Corn Field") |
-| `x` | REAL | NOT NULL | Latitude coordinate |
-| `y` | REAL | NOT NULL | Longitude coordinate |
+| `latitude` | REAL | NOT NULL | Latitude coordinate |
+| `longitude` | REAL | NOT NULL | Longitude coordinate |
 | `installed` | DATE | | Installation date |
 | `notes` | TEXT | | Free-text notes |
 
@@ -75,7 +75,7 @@ python -m backend.scripts.init_db
 
 ## Seeding Test Data
 
-The seed script generates 3 nodes with 60 days of realistic sensor data including diurnal temperature cycles, per-node moisture profiles, and a 10-day drying trend.
+The seed script generates 13 nodes with 60 days of realistic sensor data including diurnal temperature cycles, per-node moisture profiles, and a 10-day drying trend.
 
 ```bash
 # Via Python
