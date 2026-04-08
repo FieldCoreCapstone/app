@@ -26,7 +26,7 @@ Common status codes: `400` (bad input), `404` (not found), `409` (duplicate), `4
 ### 2. List Nodes
 
 - **Endpoint:** `GET /api/nodes`
-- **Response:** Array of node objects with `node_id`, `name`, `x`, `y`, `installed`, `notes`
+- **Response:** Array of node objects with `node_id`, `name`, `latitude`, `longitude`, `installed`, `notes`
 
 ### 3. Create Node
 
@@ -34,13 +34,13 @@ Common status codes: `400` (bad input), `404` (not found), `409` (duplicate), `4
 - **Body:**
 
 ```json
-{"node_id": "NORTH_01", "name": "North Field", "x": 38.94, "y": -92.32}
+{"node_id": "NORTH_01", "name": "North Field", "latitude": 38.94, "longitude": -92.32}
 ```
 
 - **Validation:**
   - `node_id`: Required. 1-50 characters, alphanumeric, hyphens, and underscores only.
   - `name`: Required. 1-100 characters.
-  - `x`, `y`: Required. Must be valid numbers (latitude/longitude).
+  - `latitude`, `longitude`: Required. Must be valid numbers.
   - `installed` (optional): Date string (e.g., `"2025-12-01"`).
   - `notes` (optional): Free-text string.
 - **Response:** Created node object (`201`)
@@ -51,7 +51,7 @@ Common status codes: `400` (bad input), `404` (not found), `409` (duplicate), `4
 Returns the latest reading for every registered node.
 
 - **Endpoint:** `GET /api/sensor/latest`
-- **Response:** Array of objects with `node_id`, `name`, `x`, `y`, `temperature`, `moisture`, `battery`, `signal_rssi`, `timestamp`
+- **Response:** Array of objects with `node_id`, `name`, `latitude`, `longitude`, `temperature`, `moisture`, `battery`, `signal_rssi`, `timestamp`
 - **Note:** `moisture` is raw capacitance (0-700). The frontend normalizes this to a percentage.
 
 ### 5. Get Historical Trends
