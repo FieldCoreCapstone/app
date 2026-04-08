@@ -1,0 +1,15 @@
+[Unit]
+Description=FieldCore LoRa Packet Listener
+After=fieldcore-web.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/field-core/pi_software
+Environment=FIELDCORE_DB=/home/pi/cap-proj/app/backend/sensors.db
+ExecStart=/usr/bin/python3 -m services.lora_listener
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

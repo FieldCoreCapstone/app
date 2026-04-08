@@ -1,0 +1,15 @@
+[Unit]
+Description=FieldCore Chromium Kiosk
+After=fieldcore-web.service graphical.target
+Wants=graphical.target
+
+[Service]
+Type=simple
+User=pi
+Environment=DISPLAY=:0
+ExecStart=/home/pi/field-core/pi_software/deploy/kiosk.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=graphical.target
