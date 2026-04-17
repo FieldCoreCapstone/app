@@ -4,10 +4,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/cap-proj/app
-Environment=FIELDCORE_DB=/home/pi/cap-proj/app/backend/sensors.db
-ExecStart=/usr/bin/python3 app.py
+User=wex
+WorkingDirectory=/home/wex/app
+Environment=FIELDCORE_DB=/home/wex/app/backend/sensors.db
+ExecStart=/home/wex/env/bin/python3 app.py
 Restart=always
 RestartSec=3
 
