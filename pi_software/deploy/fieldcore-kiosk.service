@@ -5,9 +5,10 @@ Wants=graphical.target
 
 [Service]
 Type=simple
-User=pi
+User=wex
 Environment=DISPLAY=:0
-ExecStart=/home/pi/field-core/pi_software/deploy/kiosk.sh
+Environment=XAUTHORITY=/home/wex/.Xauthority
+ExecStart=/home/wex/app/pi_software/deploy/kiosk.sh
 Restart=on-failure
 RestartSec=10
 

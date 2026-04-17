@@ -17,8 +17,18 @@ done
 # Hide mouse cursor after 3 seconds of inactivity
 unclutter -idle 3 &
 
+# Detect Chromium binary (Pi OS Bookworm+ uses `chromium`, older uses `chromium-browser`)
+if command -v chromium >/dev/null 2>&1; then
+    BROWSER=chromium
+elif command -v chromium-browser >/dev/null 2>&1; then
+    BROWSER=chromium-browser
+else
+    echo "ERROR: no chromium binary found. Install with: sudo apt install -y chromium" >&2
+    exit 1
+fi
+
 # Launch Chromium in kiosk mode
-exec chromium-browser \
+exec "$BROWSER" \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \
