@@ -4,11 +4,12 @@ Continuously polls the LoRa radio for incoming CSV packets from field
 sensor nodes. Each valid packet is parsed and inserted into SQLite via
 the shared process_reading() pipeline.
 
-Packet format from Arduino: node_id,moisture,temperature,battery_voltage
+Packet format from Arduino: node_id,moisture_pct,temperature_c,vcc_millivolts
 (CSV string, UTF-8 encoded)
 
-The Adafruit RFM9x library prepends a 4-byte RadioHead header
-[TO, FROM, ID, FLAGS] which must be stripped before parsing.
+The Arduino sandeepmistry/arduino-LoRa library sends raw bytes — no
+RadioHead header is prepended. The Adafruit Python library returns the
+full packet bytes when with_header=True, so we use the payload directly.
 
 Run: python3 -m services.lora_listener
 """
@@ -73,12 +74,11 @@ def listen(rfm9x):
         if packet is None:
             continue
 
-        if len(packet) < 5:
-            logger.warning("Packet too short (%d bytes), discarding", len(packet))
+        if len(packet) < 1:
+            logger.warning("Empty packet, discarding")
             continue
 
-        # Strip 4-byte RadioHead header [TO, FROM, ID, FLAGS]
-        payload = packet[4:]
+        payload = packet
         rssi = rfm9x.last_rssi
 
         try:

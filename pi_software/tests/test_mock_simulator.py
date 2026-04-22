@@ -3,8 +3,6 @@
 import sqlite3
 import time
 
-import pytest
-
 from services.mock_simulator import MOCK_NODES, generate_reading
 
 
@@ -27,20 +25,18 @@ class TestGenerateReading:
             csv_string, _ = generate_reading(config, time.time())
             assert csv_string.startswith(config[0] + ",")
 
-    def test_moisture_is_non_negative(self):
+    def test_moisture_within_percent_range(self):
         config = MOCK_NODES[0]
         for _ in range(50):
             csv_string, _ = generate_reading(config, time.time())
-            moisture = int(csv_string.split(",")[1])
-            assert moisture >= 0
+            moisture = float(csv_string.split(",")[1])
+            assert 0 <= moisture <= 100
 
-    def test_battery_drains_over_time(self):
-        config = ("TEST", 400, 30, 0, 9.5)
-        csv_recent, _ = generate_reading(config, time.time())
-        csv_old, _ = generate_reading(config, time.time() - 30 * 86400)  # 30 days ago
-        v_recent = float(csv_recent.split(",")[3])
-        v_old = float(csv_old.split(",")[3])
-        assert v_recent > v_old
+    def test_vcc_in_reasonable_range(self):
+        config = MOCK_NODES[0]
+        csv_string, _ = generate_reading(config, time.time())
+        vcc_mv = int(csv_string.split(",")[3])
+        assert 4500 <= vcc_mv <= 5500
 
     def test_twelve_distinct_nodes(self):
         ids = [c[0] for c in MOCK_NODES]
@@ -51,7 +47,7 @@ class TestGenerateReading:
         """Integration: generated CSV is valid input for process_reading."""
         from services.reading_processor import process_reading
 
-        config = ("TEST_01", 400, 30, 0, 9.0)
+        config = ("TEST_01", 50, 5, 0, 5100)
         csv_string, rssi = generate_reading(config, time.time())
         result = process_reading(csv_string, rssi=rssi, db_path=test_db)
         assert result["node_id"] == "TEST_01"

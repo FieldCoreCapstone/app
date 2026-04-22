@@ -29,8 +29,11 @@ def seed_db(interval_minutes=30, db_path=None):
         cursor.execute("DELETE FROM nodes")
 
         # 1. Create Nodes
+        # node_id '1' matches the int the Arduino sends as nodeID.
+        # Legacy 'FIELD_01' kept alongside for historical continuity.
         nodes = [
-            ('FIELD_01', 'Primary Field Node',   37.4225, -91.5680, '2025-12-01', 'Hardware node — live LoRa'),
+            ('1',        'Arduino Field Node', 37.4225, -91.5680, '2026-04-20', 'Real hardware node — live Arduino over LoRa'),
+            ('FIELD_01', 'Primary Field Node', 37.4225, -91.5680, '2025-12-01', 'Legacy mock identifier — retained for history'),
             ('SOUTH_02', 'South Soy Plot',      37.4190, -91.5645, '2025-12-05', 'Mock node — high ground, sandy soil'),
             ('EAST_03',  'East Pasture',         37.4210, -91.5610, '2025-12-10', 'Mock node — near the weather station'),
             ('RIDGE_04', 'Ridge Alfalfa',        37.4240, -91.5650, '2026-01-03', 'Mock node — hilltop, windy exposure'),
@@ -57,20 +60,22 @@ def seed_db(interval_minutes=30, db_path=None):
 
         logger.info("Generating readings from %s to %s...", start_date.date(), end_date.date())
 
+        # Moisture baselines are expressed as percent (0-100).
         node_configs = {
-            'FIELD_01':  {'base_m': 450, 'm_var': 50, 't_offset': 0},
-            'SOUTH_02':  {'base_m': 320, 'm_var': 30, 't_offset': -2},
-            'EAST_03':   {'base_m': 580, 'm_var': 80, 't_offset': 1.5},
-            'RIDGE_04':  {'base_m': 280, 'm_var': 40, 't_offset': -1},
-            'CREEK_05':  {'base_m': 620, 'm_var': 60, 't_offset': 0.5},
-            'POND_06':   {'base_m': 550, 'm_var': 45, 't_offset': 0.8},
-            'TIMBER_07': {'base_m': 480, 'm_var': 55, 't_offset': -0.5},
-            'HOLLOW_08': {'base_m': 600, 'm_var': 70, 't_offset': 1.0},
-            'BENCH_09':  {'base_m': 370, 'm_var': 35, 't_offset': -1.5},
-            'SPRING_10': {'base_m': 650, 'm_var': 30, 't_offset': 0.3},
-            'GATE_11':   {'base_m': 400, 'm_var': 50, 't_offset': -0.8},
-            'BLUFF_12':  {'base_m': 200, 'm_var': 25, 't_offset': -2.5},
-            'BARN_13':   {'base_m': 500, 'm_var': 45, 't_offset': 0.2},
+            '1':         {'base_m': 64, 'm_var': 7, 't_offset': 0},
+            'FIELD_01':  {'base_m': 64, 'm_var': 7, 't_offset': 0},
+            'SOUTH_02':  {'base_m': 46, 'm_var': 4, 't_offset': -2},
+            'EAST_03':   {'base_m': 83, 'm_var': 11, 't_offset': 1.5},
+            'RIDGE_04':  {'base_m': 40, 'm_var': 6, 't_offset': -1},
+            'CREEK_05':  {'base_m': 89, 'm_var': 9, 't_offset': 0.5},
+            'POND_06':   {'base_m': 79, 'm_var': 6, 't_offset': 0.8},
+            'TIMBER_07': {'base_m': 69, 'm_var': 8, 't_offset': -0.5},
+            'HOLLOW_08': {'base_m': 86, 'm_var': 10, 't_offset': 1.0},
+            'BENCH_09':  {'base_m': 53, 'm_var': 5, 't_offset': -1.5},
+            'SPRING_10': {'base_m': 93, 'm_var': 4, 't_offset': 0.3},
+            'GATE_11':   {'base_m': 57, 'm_var': 7, 't_offset': -0.8},
+            'BLUFF_12':  {'base_m': 29, 'm_var': 4, 't_offset': -2.5},
+            'BARN_13':   {'base_m': 71, 'm_var': 6, 't_offset': 0.2},
         }
 
         readings_batch = []
@@ -85,17 +90,18 @@ def seed_db(interval_minutes=30, db_path=None):
                 moisture = cfg['base_m'] + random.randint(-cfg['m_var'], cfg['m_var'])
                 # Add a slow "drying out" trend for the last 10 days
                 if (end_date - current_time).days < 10:
-                    moisture -= (10 - (end_date - current_time).days) * 5
+                    moisture -= (10 - (end_date - current_time).days)
 
                 temp = temp_cycle + cfg['t_offset'] + random.uniform(-0.5, 0.5)
-                battery = random.randint(85, 100) if (end_date - current_time).days > 30 else random.randint(70, 85)
+                # Battery is VCC-health percent (5V rail); stays ~90-100 in normal operation.
+                battery = random.randint(90, 100) if (end_date - current_time).days > 30 else random.randint(80, 95)
                 rssi = random.randint(-85, -60)
 
                 readings_batch.append((
                     node_id,
                     current_time.strftime('%Y-%m-%d %H:%M:%S'),
                     battery,
-                    max(0, int(moisture)),
+                    max(0, min(100, int(moisture))),
                     round(temp, 2),
                     rssi
                 ))

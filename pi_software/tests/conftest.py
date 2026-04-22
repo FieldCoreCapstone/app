@@ -30,13 +30,20 @@ CREATE TABLE IF NOT EXISTS readings (
 
 @pytest.fixture
 def test_db(tmp_path):
-    """Create an isolated test database with the FieldCore schema and one test node."""
+    """Create an isolated test database with the FieldCore schema and the node IDs
+    referenced by the tests: TEST_01 (mock/legacy), FIELD_01 (legacy string),
+    and "1" (canonical Arduino integer-as-string).
+    """
     db_path = str(tmp_path / "test.db")
     conn = sqlite3.connect(db_path)
     conn.executescript(SCHEMA)
-    conn.execute(
+    conn.executemany(
         "INSERT INTO nodes (node_id, name, latitude, longitude) VALUES (?, ?, ?, ?)",
-        ("TEST_01", "Test Node", 37.42, -91.56),
+        [
+            ("TEST_01",  "Test Node",      37.42, -91.56),
+            ("FIELD_01", "Legacy Field",   37.42, -91.56),
+            ("1",        "Arduino Node",   37.42, -91.56),
+        ],
     )
     conn.commit()
     conn.close()

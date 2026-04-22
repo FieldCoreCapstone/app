@@ -1,53 +1,50 @@
 """Shared reading processor for LoRa listener and mock simulator.
 
-Parses CSV packets, validates fields, converts battery voltage to
+Parses CSV packets, validates fields, converts VCC millivolts to a health
 percentage, and inserts into SQLite via db.insert_reading().
 
-Both the real LoRa listener and mock simulator call process_reading()
-so the validation and insertion path is identical — no "mock mode".
+Both the real LoRa listener and mock simulator call process_reading() so
+the validation and insertion path is identical — no "mock mode".
+
+Canonical packet format (matches Arduino output):
+    node_id,moisture_pct,temperature_c,vcc_millivolts
+
+Example: `1,45.50,22.20,5161`
+    node_id      → any non-empty string (e.g. "1" or "FIELD_01")
+    moisture_pct → float 0.0-100.0, rounded to integer percent
+    temperature  → float, degrees Celsius
+    vcc_mv       → integer millivolts of the Arduino's 5V supply rail
 """
 
 import logging
 
-from services.db import insert_reading, node_exists
+from services.db import insert_reading
 
 logger = logging.getLogger(__name__)
 
-# 6xAA alkaline battery curve (linear interpolation)
-# 9.6V = 100% (fresh), 7.5V ≈ 60%, 6.5V ≈ 15%, 6.0V = 0% (dead)
-_BATTERY_CURVE = [
-    (9.6, 100),
-    (7.5, 60),
-    (6.5, 15),
-    (6.0, 0),
-]
 
+def vcc_millivolts_to_health_pct(mv):
+    """Convert Arduino VCC rail millivolts to a 0-100 health percentage.
 
-def voltage_to_battery_pct(voltage):
-    """Convert battery voltage (6xAA pack) to percentage (0-100).
+    The Arduino reports its own 5V supply rail (not the battery voltage).
+    A healthy rail should sit around 4800-5200 mV. Outside that band
+    indicates brownout (low) or regulator fault (high).
 
-    Uses linear interpolation between known points on the
-    alkaline discharge curve. Clamps to 0-100.
+    4500 mV or below → 0%
+    5500 mV or above → 100%
+    Linear in between.
     """
-    if voltage >= _BATTERY_CURVE[0][0]:
-        return 100
-    if voltage <= _BATTERY_CURVE[-1][0]:
+    if mv <= 4500:
         return 0
-
-    for i in range(len(_BATTERY_CURVE) - 1):
-        v_high, pct_high = _BATTERY_CURVE[i]
-        v_low, pct_low = _BATTERY_CURVE[i + 1]
-        if v_low <= voltage <= v_high:
-            t = (voltage - v_low) / (v_high - v_low)
-            return round(pct_low + t * (pct_high - pct_low))
-
-    return 0
+    if mv >= 5500:
+        return 100
+    return round((mv - 4500) / 10)
 
 
 def process_reading(csv_string, rssi=None, db_path=None):
     """Parse a CSV reading string and insert into the database.
 
-    CSV format: node_id,moisture,temperature,battery_voltage
+    CSV format: node_id,moisture_pct,temperature_c,vcc_millivolts
     RSSI is provided separately (from radio metadata or mock generator).
 
     Returns a dict of the parsed values on success.
@@ -64,7 +61,8 @@ def process_reading(csv_string, rssi=None, db_path=None):
         raise ValueError("Empty node_id")
 
     try:
-        moisture = int(parts[1].strip())
+        moisture = round(float(parts[1].strip()))
+        moisture = max(0, min(100, moisture))
     except ValueError:
         raise ValueError(f"Invalid moisture value: {parts[1]!r}")
 
@@ -74,11 +72,11 @@ def process_reading(csv_string, rssi=None, db_path=None):
         raise ValueError(f"Invalid temperature value: {parts[2]!r}")
 
     try:
-        battery_voltage = float(parts[3].strip())
+        vcc_mv = int(parts[3].strip())
     except ValueError:
-        raise ValueError(f"Invalid battery voltage: {parts[3]!r}")
+        raise ValueError(f"Invalid VCC millivolts: {parts[3]!r}")
 
-    battery_pct = voltage_to_battery_pct(battery_voltage)
+    battery_pct = vcc_millivolts_to_health_pct(vcc_mv)
 
     reading_id = insert_reading(
         node_id=node_id,
@@ -94,10 +92,10 @@ def process_reading(csv_string, rssi=None, db_path=None):
         "node_id": node_id,
         "moisture": moisture,
         "temperature": temperature,
-        "battery_voltage": battery_voltage,
+        "vcc_mv": vcc_mv,
         "battery_pct": battery_pct,
         "rssi": rssi,
     }
-    logger.info("Inserted reading #%d for %s (moisture=%d, temp=%.1f°C, bat=%d%%)",
-                reading_id, node_id, moisture, temperature, battery_pct)
+    logger.info("Inserted reading #%d for %s (moisture=%d%%, temp=%.1f°C, vcc=%dmV)",
+                reading_id, node_id, moisture, temperature, vcc_mv)
     return result
