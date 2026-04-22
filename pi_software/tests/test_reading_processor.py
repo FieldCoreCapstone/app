@@ -4,79 +4,101 @@ import sqlite3
 
 import pytest
 
-from services.reading_processor import process_reading, voltage_to_battery_pct
+from services.reading_processor import process_reading, vcc_millivolts_to_health_pct
 
 
-class TestVoltageToBatteryPct:
-    def test_fresh_battery(self):
-        assert voltage_to_battery_pct(9.6) == 100
+class TestVccMillivoltsToHealthPct:
+    def test_nominal(self):
+        # 5000 mV is squarely in the healthy band
+        pct = vcc_millivolts_to_health_pct(5000)
+        assert 40 <= pct <= 60
+
+    def test_full_health(self):
+        assert vcc_millivolts_to_health_pct(5500) == 100
 
     def test_above_max(self):
-        assert voltage_to_battery_pct(10.0) == 100
+        assert vcc_millivolts_to_health_pct(6000) == 100
 
-    def test_dead_battery(self):
-        assert voltage_to_battery_pct(6.0) == 0
+    def test_brownout(self):
+        assert vcc_millivolts_to_health_pct(4500) == 0
 
     def test_below_min(self):
-        assert voltage_to_battery_pct(5.0) == 0
+        assert vcc_millivolts_to_health_pct(3000) == 0
 
     def test_mid_range(self):
-        # 7.5V should be ~60%
-        assert voltage_to_battery_pct(7.5) == 60
-
-    def test_interpolation(self):
-        # 8.55V is halfway between 9.6 and 7.5 → ~80%
-        pct = voltage_to_battery_pct(8.55)
-        assert 75 <= pct <= 85
+        # 5200 mV is 70% of the way from 4500 to 5500
+        assert vcc_millivolts_to_health_pct(5200) == 70
 
 
 class TestProcessReading:
     def test_valid_csv(self, test_db):
-        result = process_reading("TEST_01,450,22.5,8.7", rssi=-67, db_path=test_db)
-        assert result["node_id"] == "TEST_01"
-        assert result["moisture"] == 450
-        assert result["temperature"] == 22.5
-        assert result["battery_voltage"] == 8.7
-        assert 70 <= result["battery_pct"] <= 85
+        # Arduino-style payload: int nodeID, float moisture%, float tempC, int mV
+        result = process_reading("1,45.50,22.20,5161", rssi=-67, db_path=test_db)
+        assert result["node_id"] == "1"
+        assert result["moisture"] == 46  # rounded from 45.50
+        assert result["temperature"] == 22.2
+        assert result["vcc_mv"] == 5161
+        assert 60 <= result["battery_pct"] <= 70
         assert result["rssi"] == -67
         assert result["reading_id"] is not None
 
+    def test_legacy_string_node_id_still_works(self, test_db):
+        result = process_reading("FIELD_01,65.0,22.5,5050", rssi=-67, db_path=test_db)
+        assert result["node_id"] == "FIELD_01"
+        assert result["moisture"] == 65
+
     def test_reading_in_database(self, test_db):
-        process_reading("TEST_01,450,22.5,8.7", rssi=-67, db_path=test_db)
+        process_reading("1,45.50,22.20,5161", rssi=-67, db_path=test_db)
         conn = sqlite3.connect(test_db)
-        row = conn.execute("SELECT * FROM readings WHERE node_id = 'TEST_01'").fetchone()
+        row = conn.execute("SELECT * FROM readings WHERE node_id = '1'").fetchone()
         conn.close()
         assert row is not None
 
-    def test_low_battery_voltage(self, test_db):
-        result = process_reading("TEST_01,300,18.0,6.2", rssi=-70, db_path=test_db)
-        assert result["battery_pct"] <= 10
+    def test_moisture_clamped_over_100(self, test_db):
+        result = process_reading("1,150.0,22.0,5100", rssi=-67, db_path=test_db)
+        assert result["moisture"] == 100
+
+    def test_moisture_clamped_below_zero(self, test_db):
+        result = process_reading("1,-10.0,22.0,5100", rssi=-67, db_path=test_db)
+        assert result["moisture"] == 0
+
+    def test_dry_soil_zero_moisture(self, test_db):
+        result = process_reading("1,0.00,21.20,5161", rssi=-67, db_path=test_db)
+        assert result["moisture"] == 0
+
+    def test_integer_moisture_also_works(self, test_db):
+        result = process_reading("1,75,22.0,5100", rssi=-67, db_path=test_db)
+        assert result["moisture"] == 75
+
+    def test_brownout_battery(self, test_db):
+        result = process_reading("1,50.0,20.0,4400", rssi=-70, db_path=test_db)
+        assert result["battery_pct"] == 0
 
     def test_whitespace_in_csv(self, test_db):
-        result = process_reading("  TEST_01 , 450 , 22.5 , 8.7 ", rssi=-67, db_path=test_db)
-        assert result["node_id"] == "TEST_01"
-        assert result["moisture"] == 450
+        result = process_reading("  1 , 45.5 , 22.2 , 5161 ", rssi=-67, db_path=test_db)
+        assert result["node_id"] == "1"
+        assert result["moisture"] == 46
 
     def test_wrong_field_count(self, test_db):
         with pytest.raises(ValueError, match="Expected 4 CSV fields"):
-            process_reading("TEST_01,450,22.5", rssi=-67, db_path=test_db)
+            process_reading("1,45.5,22.2", rssi=-67, db_path=test_db)
 
     def test_non_numeric_moisture(self, test_db):
         with pytest.raises(ValueError, match="Invalid moisture"):
-            process_reading("TEST_01,abc,22.5,8.7", rssi=-67, db_path=test_db)
+            process_reading("1,abc,22.5,5100", rssi=-67, db_path=test_db)
 
     def test_non_numeric_temperature(self, test_db):
         with pytest.raises(ValueError, match="Invalid temperature"):
-            process_reading("TEST_01,450,hot,8.7", rssi=-67, db_path=test_db)
+            process_reading("1,45.5,hot,5100", rssi=-67, db_path=test_db)
 
-    def test_non_numeric_battery(self, test_db):
-        with pytest.raises(ValueError, match="Invalid battery voltage"):
-            process_reading("TEST_01,450,22.5,full", rssi=-67, db_path=test_db)
+    def test_non_numeric_vcc(self, test_db):
+        with pytest.raises(ValueError, match="Invalid VCC millivolts"):
+            process_reading("1,45.5,22.5,full", rssi=-67, db_path=test_db)
 
     def test_empty_node_id(self, test_db):
         with pytest.raises(ValueError, match="Empty node_id"):
-            process_reading(",450,22.5,8.7", rssi=-67, db_path=test_db)
+            process_reading(",45.5,22.5,5100", rssi=-67, db_path=test_db)
 
     def test_no_rssi(self, test_db):
-        result = process_reading("TEST_01,450,22.5,8.7", db_path=test_db)
+        result = process_reading("1,45.5,22.5,5100", db_path=test_db)
         assert result["rssi"] is None

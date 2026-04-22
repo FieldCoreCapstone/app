@@ -10,7 +10,7 @@ const MOISTURE_COLOR = {
 
 const NODE_R = 18;
 const REFRESH_MS = 30000; // auto-refresh every 30s
-const MOISTURE_MAX = 700; // raw capacitance max for normalization
+// Moisture is stored as integer percent (0-100); no raw-to-percent scaling needed.
 
 // Map button labels to API range keys
 const RANGE_MAP = {
@@ -47,8 +47,9 @@ let heatmapBorderBlack = null;  // L.rectangle — black dashes
 let heatmapBorderYellow = null; // L.rectangle — yellow dashes (offset)
 
 /* ── Moisture helpers ─────────────────────────────────────────────────── */
-function normalizeMoisture(raw) {
-    return Math.max(0, Math.min(100, Math.round((raw / MOISTURE_MAX) * 100)));
+// Moisture arrives as percent (0-100). Clamp only; no raw-to-percent scaling.
+function normalizeMoisture(pct) {
+    return Math.max(0, Math.min(100, Math.round(pct || 0)));
 }
 
 function moistureLevel(pct) {

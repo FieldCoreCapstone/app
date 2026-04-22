@@ -28,20 +28,21 @@ _running = True
 
 INTERVAL_SECONDS = 900  # 15 minutes
 
-# Each mock node: (node_id, base_moisture, moisture_variance, temp_offset, initial_voltage)
+# Each mock node: (node_id, base_moisture_pct, moisture_variance, temp_offset, initial_vcc_mv)
+# Moisture is percent (0-100). VCC is millivolts of the Arduino 5V rail.
 MOCK_NODES = [
-    ("RIDGE_04",  280, 40, -1.0,  9.3),
-    ("CREEK_05",  620, 60,  0.5,  9.1),
-    ("POND_06",   550, 45,  0.8,  9.4),
-    ("TIMBER_07", 480, 55, -0.5,  9.2),
-    ("HOLLOW_08", 600, 70,  1.0,  8.9),
-    ("BENCH_09",  370, 35, -1.5,  9.5),
-    ("SPRING_10", 650, 30,  0.3,  9.0),
-    ("GATE_11",   400, 50, -0.8,  9.3),
-    ("BLUFF_12",  200, 25, -2.5,  9.1),
-    ("BARN_13",   500, 45,  0.2,  9.4),
-    ("SOUTH_02",  320, 30, -2.0,  9.2),
-    ("EAST_03",   580, 80,  1.5,  8.8),
+    ("RIDGE_04",  40, 6, -1.0,  5100),
+    ("CREEK_05",  88, 8,  0.5,  5080),
+    ("POND_06",   78, 6,  0.8,  5150),
+    ("TIMBER_07", 68, 7, -0.5,  5120),
+    ("HOLLOW_08", 85, 9,  1.0,  5050),
+    ("BENCH_09",  52, 5, -1.5,  5180),
+    ("SPRING_10", 92, 4,  0.3,  5000),
+    ("GATE_11",   57, 7, -0.8,  5100),
+    ("BLUFF_12",  28, 4, -2.5,  5080),
+    ("BARN_13",   71, 6,  0.2,  5150),
+    ("SOUTH_02",  46, 4, -2.0,  5120),
+    ("EAST_03",   83, 10, 1.5,  4980),
 ]
 
 
@@ -52,8 +53,12 @@ def _handle_signal(signum, frame):
 
 
 def generate_reading(node_config, start_time):
-    """Generate a single realistic reading for a mock node."""
-    node_id, base_m, m_var, t_offset, init_voltage = node_config
+    """Generate a single realistic reading for a mock node.
+
+    Returns a CSV string matching the Arduino's output format:
+        node_id,moisture_pct,temperature_c,vcc_millivolts
+    """
+    node_id, base_m, m_var, t_offset, init_vcc_mv = node_config
 
     now = datetime.now(timezone.utc)
     hour = now.hour + now.minute / 60.0
@@ -62,18 +67,19 @@ def generate_reading(node_config, start_time):
     temp = 20 + 8 * math.sin((hour - 9) * math.pi / 12)
     temp += t_offset + random.uniform(-0.5, 0.5)
 
-    # Moisture with per-node variance
+    # Moisture percent with per-node variance, clamped 0-100
     moisture = base_m + random.randint(-m_var, m_var)
-    moisture = max(0, moisture)
+    moisture = max(0, min(100, moisture))
 
-    # Battery drain: ~0.01V per day from initial voltage
+    # VCC millivolts drift slowly (regulators stay near nominal until
+    # the battery gets very low). Small wander to look alive.
     elapsed_days = (time.time() - start_time) / 86400
-    voltage = init_voltage - 0.01 * elapsed_days
-    voltage = max(5.5, round(voltage, 2))
+    vcc_mv = init_vcc_mv - int(2 * elapsed_days) + random.randint(-15, 15)
+    vcc_mv = max(4500, min(5500, vcc_mv))
 
     rssi = random.randint(-85, -60)
 
-    csv_string = f"{node_id},{moisture},{temp:.2f},{voltage}"
+    csv_string = f"{node_id},{moisture}.00,{temp:.2f},{vcc_mv}"
     return csv_string, rssi
 
 

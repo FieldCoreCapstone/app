@@ -16,13 +16,18 @@ from backend.scripts.init_db import init_db
 logger = logging.getLogger(__name__)
 
 
-def normalize_moisture(raw, raw_min=None, raw_max=None):
-    """Convert raw capacitance value (0-700) to percentage (0-100)."""
-    lo = raw_min if raw_min is not None else config.MOISTURE_RAW_MIN
-    hi = raw_max if raw_max is not None else config.MOISTURE_RAW_MAX
-    if hi <= lo:
+def normalize_moisture(value, *_unused):
+    """Moisture is stored as integer percent (0-100).
+
+    This function only clamps incoming values to the valid range so any
+    stale data or edge cases still render cleanly. The *_unused args
+    preserve the old signature (raw_min, raw_max) for call sites that
+    may still pass them.
+    """
+    try:
+        return max(0, min(100, round(float(value))))
+    except (TypeError, ValueError):
         return 0
-    return max(0, min(100, round((raw - lo) / (hi - lo) * 100)))
 
 
 def moisture_level(pct):
