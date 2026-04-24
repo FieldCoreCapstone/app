@@ -60,10 +60,10 @@ Returns aggregated data for charts based on a selected time range.
 
 - **Endpoint:** `GET /api/sensor/history`
 - **Query Parameters:**
-  - `range` (required): `24h` | `7d` | `1m` | `3m` | `1y`
+  - `range` (optional, default `7d`): `15m` | `1h` | `12h` | `24h` | `7d` | `1m` | `3m`
   - `node_id` (optional): Filter by specific node.
 - **Response:** Array of objects with `node_id`, `period`, `avg_temperature`, `avg_moisture`, `avg_battery`, `sample_count`
-- **Aggregation:** `24h` and `7d` group by hour; `1m` and `3m` group by day; `1y` groups by week.
+- **Aggregation:** `15m` and `1h` group by minute; `12h`, `24h`, and `7d` group by hour; `1m` and `3m` group by day.
 
 ### 6. Ingest Sensor Reading
 
@@ -89,7 +89,7 @@ Wipe and repopulate the database with 60 days of test data.
 - **Body:** `{"interval_minutes": 30}` (accepts `15` or `30`)
 - **Response:** `{"status": "success", "message": "..."}`
 - **Note:** Only available when `FLASK_DEBUG=1`. Returns `403` in production mode.
-- **Live reseed:** You can call this while the dashboard is running. The dashboard will pick up the new data on its next auto-refresh (every 30 seconds), or click any time-range button to refresh immediately.
+- **Live reseed:** You can call this while the dashboard is running. The dashboard will pick up the new data on its next auto-refresh (every 3 seconds), or click any range chip in the chart card to refresh the chart immediately.
 - **Example:**
 
 ```bash
