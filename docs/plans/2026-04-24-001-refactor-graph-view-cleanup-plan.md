@@ -1,7 +1,7 @@
 ---
 title: "refactor: Graph view cleanup — move tabs to chart, add metric toggle, fix class collision"
 type: refactor
-status: active
+status: completed
 date: 2026-04-24
 origin: docs/brainstorms/graph-view-cleanup-requirements.md
 ---
