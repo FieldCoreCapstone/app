@@ -7,7 +7,7 @@ import pytest
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS nodes (
-    node_id     TEXT PRIMARY KEY,
+    id          INTEGER PRIMARY KEY,
     name        TEXT NOT NULL,
     latitude    REAL NOT NULL,
     longitude   REAL NOT NULL,
@@ -17,32 +17,33 @@ CREATE TABLE IF NOT EXISTS nodes (
 
 CREATE TABLE IF NOT EXISTS readings (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    node_id     TEXT NOT NULL,
+    node_id     INTEGER NOT NULL,
     timestamp   DATETIME NOT NULL DEFAULT (datetime('now')),
     battery     INTEGER,
     moisture    INTEGER,
     temperature REAL,
     signal_rssi INTEGER,
-    FOREIGN KEY (node_id) REFERENCES nodes(node_id)
+    FOREIGN KEY (node_id) REFERENCES nodes(id)
 );
 """
 
 
 @pytest.fixture
 def test_db(tmp_path):
-    """Create an isolated test database with the FieldCore schema and the node IDs
-    referenced by the tests: TEST_01 (mock/legacy), FIELD_01 (legacy string),
-    and "1" (canonical Arduino integer-as-string).
+    """Create an isolated test database with integer-keyed nodes.
+
+    Seeds ids 1, 2, 3 with names field_1, field_2, field_3. Node 1 covers
+    Arduino-shaped tests; node 2 covers the mock-simulator integration test.
     """
     db_path = str(tmp_path / "test.db")
     conn = sqlite3.connect(db_path)
     conn.executescript(SCHEMA)
     conn.executemany(
-        "INSERT INTO nodes (node_id, name, latitude, longitude) VALUES (?, ?, ?, ?)",
+        "INSERT INTO nodes (id, name, latitude, longitude) VALUES (?, ?, ?, ?)",
         [
-            ("TEST_01",  "Test Node",      37.42, -91.56),
-            ("FIELD_01", "Legacy Field",   37.42, -91.56),
-            ("1",        "Arduino Node",   37.42, -91.56),
+            (1, "field_1", 37.42, -91.56),
+            (2, "field_2", 37.42, -91.56),
+            (3, "field_3", 37.42, -91.56),
         ],
     )
     conn.commit()
