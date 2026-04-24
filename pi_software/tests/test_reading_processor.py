@@ -34,7 +34,7 @@ class TestProcessReading:
     def test_valid_csv(self, test_db):
         # Arduino-style payload: int nodeID, float moisture%, float tempC, int mV
         result = process_reading("1,45.50,22.20,5161", rssi=-67, db_path=test_db)
-        assert result["node_id"] == "1"
+        assert result["node_id"] == 1
         assert result["moisture"] == 46  # rounded from 45.50
         assert result["temperature"] == 22.2
         assert result["vcc_mv"] == 5161
@@ -42,15 +42,10 @@ class TestProcessReading:
         assert result["rssi"] == -67
         assert result["reading_id"] is not None
 
-    def test_legacy_string_node_id_still_works(self, test_db):
-        result = process_reading("FIELD_01,65.0,22.5,5050", rssi=-67, db_path=test_db)
-        assert result["node_id"] == "FIELD_01"
-        assert result["moisture"] == 65
-
     def test_reading_in_database(self, test_db):
         process_reading("1,45.50,22.20,5161", rssi=-67, db_path=test_db)
         conn = sqlite3.connect(test_db)
-        row = conn.execute("SELECT * FROM readings WHERE node_id = '1'").fetchone()
+        row = conn.execute("SELECT * FROM readings WHERE node_id = 1").fetchone()
         conn.close()
         assert row is not None
 
@@ -76,7 +71,7 @@ class TestProcessReading:
 
     def test_whitespace_in_csv(self, test_db):
         result = process_reading("  1 , 45.5 , 22.2 , 5161 ", rssi=-67, db_path=test_db)
-        assert result["node_id"] == "1"
+        assert result["node_id"] == 1
         assert result["moisture"] == 46
 
     def test_wrong_field_count(self, test_db):
@@ -98,6 +93,14 @@ class TestProcessReading:
     def test_empty_node_id(self, test_db):
         with pytest.raises(ValueError, match="Empty node_id"):
             process_reading(",45.5,22.5,5100", rssi=-67, db_path=test_db)
+
+    def test_non_integer_node_id(self, test_db):
+        with pytest.raises(ValueError, match="Invalid node_id"):
+            process_reading("abc,45.5,22.5,5100", rssi=-67, db_path=test_db)
+
+    def test_zero_node_id_rejected(self, test_db):
+        with pytest.raises(ValueError, match="Invalid node_id"):
+            process_reading("0,45.5,22.5,5100", rssi=-67, db_path=test_db)
 
     def test_no_rssi(self, test_db):
         result = process_reading("1,45.5,22.5,5100", db_path=test_db)

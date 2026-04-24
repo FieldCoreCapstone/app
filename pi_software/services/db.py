@@ -43,5 +43,5 @@ def insert_reading(node_id, moisture, temperature, battery=None, signal_rssi=Non
 
 def node_exists(node_id, db_path=None):
     with get_db(db_path) as conn:
-        row = conn.execute("SELECT 1 FROM nodes WHERE node_id = ?", (node_id,)).fetchone()
+        row = conn.execute("SELECT 1 FROM nodes WHERE id = ?", (node_id,)).fetchone()
         return row is not None

@@ -10,7 +10,7 @@ Canonical packet format (matches Arduino output):
     node_id,moisture_pct,temperature_c,vcc_millivolts
 
 Example: `1,45.50,22.20,5161`
-    node_id      → any non-empty string (e.g. "1" or "FIELD_01")
+    node_id      → positive integer matching the node's DB id (e.g. 1)
     moisture_pct → float 0.0-100.0, rounded to integer percent
     temperature  → float, degrees Celsius
     vcc_mv       → integer millivolts of the Arduino's 5V supply rail
@@ -56,9 +56,15 @@ def process_reading(csv_string, rssi=None, db_path=None):
     if len(parts) != 4:
         raise ValueError(f"Expected 4 CSV fields, got {len(parts)}: {csv_string!r}")
 
-    node_id = parts[0].strip()
-    if not node_id:
+    raw_node_id = parts[0].strip()
+    if not raw_node_id:
         raise ValueError("Empty node_id")
+    try:
+        node_id = int(raw_node_id)
+    except ValueError:
+        raise ValueError(f"Invalid node_id: {raw_node_id!r}")
+    if node_id < 1:
+        raise ValueError(f"Invalid node_id: {node_id} (must be >= 1)")
 
     try:
         moisture = round(float(parts[1].strip()))

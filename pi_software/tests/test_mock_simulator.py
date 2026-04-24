@@ -23,7 +23,7 @@ class TestGenerateReading:
     def test_node_id_matches(self):
         for config in MOCK_NODES:
             csv_string, _ = generate_reading(config, time.time())
-            assert csv_string.startswith(config[0] + ",")
+            assert csv_string.startswith(f"{config[0]},")
 
     def test_moisture_within_percent_range(self):
         config = MOCK_NODES[0]
@@ -43,14 +43,20 @@ class TestGenerateReading:
         assert len(ids) == 12
         assert len(set(ids)) == 12
 
+    def test_node_id_one_reserved_for_arduino(self):
+        """id=1 is the real hardware node; mock simulator must not overlap."""
+        ids = {c[0] for c in MOCK_NODES}
+        assert 1 not in ids
+
     def test_csv_parses_through_process_reading(self, test_db):
         """Integration: generated CSV is valid input for process_reading."""
         from services.reading_processor import process_reading
 
-        config = ("TEST_01", 50, 5, 0, 5100)
+        # Use id=2 so the conftest's seeded field_2 row satisfies the FK.
+        config = (2, 50, 5, 0, 5100)
         csv_string, rssi = generate_reading(config, time.time())
         result = process_reading(csv_string, rssi=rssi, db_path=test_db)
-        assert result["node_id"] == "TEST_01"
+        assert result["node_id"] == 2
 
         conn = sqlite3.connect(test_db)
         count = conn.execute("SELECT COUNT(*) FROM readings").fetchone()[0]
