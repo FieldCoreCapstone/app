@@ -9,7 +9,7 @@ const MOISTURE_COLOR = {
 };
 
 const NODE_R = 18;
-const REFRESH_MS = 30000; // auto-refresh every 30s
+const REFRESH_MS = 3000; // auto-refresh every 3s
 // Moisture is stored as integer percent (0-100); no raw-to-percent scaling needed.
 
 // Map button labels to API range keys
