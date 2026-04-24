@@ -13,13 +13,6 @@
 <body>
     <div class="dashboard">
 
-        <!-- Time-range bar -->
-        <div class="time-bar">
-            {% for label in time_ranges %}
-            <button class="time-btn{{ ' active' if loop.first }}" data-range="{{ label }}">{{ label }}</button>
-            {% endfor %}
-        </div>
-
         <!-- Two-column body -->
         <div class="body-columns">
 
@@ -29,8 +22,8 @@
                     <div class="map-card-header">
                         <div class="card-title">Field Sensor Map</div>
                         <div class="view-toggle">
-                            <button class="time-btn" data-view="canvas">Canvas</button>
-                            <button class="time-btn active" data-view="map">Map</button>
+                            <button class="view-toggle-btn" data-view="canvas">Canvas</button>
+                            <button class="view-toggle-btn active" data-view="map">Map</button>
                         </div>
                     </div>
 
@@ -89,8 +82,33 @@
                 <!-- Historical chart -->
                 <div class="card chart-card">
                     <div class="card-title">Historical Trends</div>
+
+                    <div class="chart-controls">
+                        <div class="chart-metric-group">
+                            <button class="chart-metric-btn active" data-metric="moisture">Moisture</button>
+                            <button class="chart-metric-btn" data-metric="temperature">Temperature</button>
+                        </div>
+                        <div class="chart-range-group">
+                            <button class="chart-range-btn" data-range="15m">15m</button>
+                            <button class="chart-range-btn" data-range="1h">1h</button>
+                            <button class="chart-range-btn" data-range="12h">12h</button>
+                            <button class="chart-range-btn" data-range="24h">24h</button>
+                            <button class="chart-range-btn active" data-range="7d">7d</button>
+                            <button class="chart-range-btn" data-range="1m">1m</button>
+                            <button class="chart-range-btn" data-range="3m">3m</button>
+                        </div>
+                    </div>
+
                     <div class="chart-wrap">
                         <canvas id="historyChart"></canvas>
+                        <div class="chart-loading" hidden>
+                            <div class="chart-spinner" aria-hidden="true"></div>
+                        </div>
+                        <div class="chart-empty" hidden></div>
+                        <div class="chart-error" hidden>
+                            <div class="chart-error-msg">Could not load history</div>
+                            <button class="chart-error-retry" type="button">Retry</button>
+                        </div>
                     </div>
                 </div>
             </div>

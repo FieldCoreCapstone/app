@@ -111,13 +111,10 @@ def create_app():
                 "temp_high": temp > 30,
             })
 
-        time_ranges = ["Live", "24 Hours", "7 Days", "1 Month", "3 Months", "1 Year"]
-
         return render_template(
             "index.html",
             nodes=nodes,
             table_data=table_data,
-            time_ranges=time_ranges,
         )
 
     # ── Seed endpoint (dev tool) ────────────────────────────────────────

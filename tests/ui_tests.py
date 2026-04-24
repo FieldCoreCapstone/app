@@ -22,22 +22,54 @@ class TestDashboardLoads:
         assert 'class="dashboard"' in _html(resp)
 
 
-class TestTimeRangeButtons:
-    def test_all_time_range_buttons_present(self, client):
-        resp = client.get("/")
-        html = _html(resp)
-        for label in ["Live", "24 Hours", "7 Days", "1 Month", "3 Months", "1 Year"]:
-            assert f'data-range="{label}"' in html, f"Missing time range button: {label}"
+class TestChartControls:
+    """The time-range tabs and metric toggle live inside the chart card now.
 
-    def test_first_button_is_active(self, client):
-        resp = client.get("/")
-        html = _html(resp)
-        # The first time-btn rendered should carry the 'active' class
-        assert 'class="time-btn active"' in html
+    The old top-of-page .time-bar and its .time-btn buttons are gone; these
+    tests cover the replacement .chart-controls block.
+    """
 
-    def test_time_bar_container_present(self, client):
-        resp = client.get("/")
-        assert 'class="time-bar"' in _html(resp)
+    def test_top_time_bar_removed(self, client):
+        """The old global .time-bar container must not render anywhere."""
+        html = _html(client.get("/"))
+        assert 'class="time-bar"' not in html
+
+    def test_chart_controls_container_present(self, client):
+        html = _html(client.get("/"))
+        assert 'class="chart-controls"' in html
+
+    def test_all_range_chips_present(self, client):
+        html = _html(client.get("/"))
+        for rng in ["15m", "1h", "12h", "24h", "7d", "1m", "3m"]:
+            assert f'data-range="{rng}"' in html, f"Missing range chip: {rng}"
+
+    def test_1y_range_chip_removed(self, client):
+        html = _html(client.get("/"))
+        assert 'data-range="1y"' not in html
+
+    def test_metric_toggle_present(self, client):
+        html = _html(client.get("/"))
+        assert 'data-metric="moisture"' in html
+        assert 'data-metric="temperature"' in html
+
+    def test_default_active_chip_is_7d(self, client):
+        html = _html(client.get("/"))
+        assert 'class="chart-range-btn active" data-range="7d"' in html
+
+    def test_default_active_metric_is_moisture(self, client):
+        html = _html(client.get("/"))
+        assert 'class="chart-metric-btn active" data-metric="moisture"' in html
+
+    def test_chart_state_overlays_present(self, client):
+        html = _html(client.get("/"))
+        assert 'class="chart-loading"' in html
+        assert 'class="chart-empty"' in html
+        assert 'class="chart-error"' in html
+
+    def test_time_btn_class_retired(self, client):
+        """The .time-btn class should no longer appear anywhere in the dashboard."""
+        html = _html(client.get("/"))
+        assert "time-btn" not in html
 
 
 class TestSensorTable:
