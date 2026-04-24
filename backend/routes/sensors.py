@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 sensors_bp = Blueprint("sensors", __name__)
 
-VALID_RANGES = {"24h", "7d", "1m", "3m", "1y"}
+VALID_RANGES = {"15m", "1h", "12h", "24h", "7d", "1m", "3m"}
 
 
 @sensors_bp.route("/api/sensor/latest")
@@ -20,7 +20,7 @@ def latest():
 @sensors_bp.route("/api/sensor/history")
 def history():
     """Return aggregated historical data for charts."""
-    range_label = request.args.get("range", "24h")
+    range_label = request.args.get("range", "7d")
     if range_label not in VALID_RANGES:
         return jsonify({"error": f"Invalid range. Use one of: {', '.join(sorted(VALID_RANGES))}"}), 400
 
