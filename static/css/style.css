@@ -298,6 +298,7 @@ html, body {
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
+    min-height: 50vh;
 }
 
 .chart-card .card-title {
@@ -363,8 +364,8 @@ html, body {
 
 .chart-wrap {
     position: relative;
-    height: 220px;
-    flex-shrink: 0;
+    flex: 1;
+    min-height: 220px;
 }
 
 .chart-wrap canvas {
