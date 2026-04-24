@@ -331,6 +331,37 @@ function renderChart(metric, historyData) {
         };
     });
 
+    const xLabels = [...new Set(datasets.flatMap(ds => ds.data.map(d => d.x)))].sort();
+
+    // In-place update path: same metric + chart already exists. Avoids the
+    // per-3s creation animation, and Chart.js's per-instance visibility meta
+    // survives so legend-Xed-out series stay hidden across auto-refresh and
+    // range changes (range change keeps metric, so it lands here too).
+    if (historyChart && historyChart._fieldcoreMetric === metric) {
+        // Capture hidden state by label, not index — the dataset list can
+        // shift between refreshes (node appears/drops/reorders) and Chart.js
+        // visibility meta is index-keyed.
+        const hiddenLabels = new Set(
+            historyChart.data.datasets
+                .map((ds, i) => historyChart.isDatasetVisible(i) ? null : ds.label)
+                .filter(label => label !== null)
+        );
+
+        historyChart.data.datasets = datasets;
+        historyChart.options.scales.x.labels = xLabels;
+        historyChart.update('none');
+
+        // Re-apply hidden state by matching labels in the new datasets.
+        // animation:false on the chart means hide() doesn't re-animate.
+        if (hiddenLabels.size > 0) {
+            datasets.forEach((ds, i) => {
+                if (hiddenLabels.has(ds.label)) historyChart.hide(i);
+            });
+        }
+        return;
+    }
+
+    // Destroy+rebuild path: first render or metric switch (y-axis differs).
     if (historyChart) {
         historyChart.destroy();
     }
@@ -345,6 +376,7 @@ function renderChart(metric, historyData) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            animation: false, // belt-and-suspenders: kills metric-switch animation too
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: {
@@ -368,7 +400,7 @@ function renderChart(metric, historyData) {
             scales: {
                 x: {
                     type: 'category',
-                    labels: [...new Set(datasets.flatMap(ds => ds.data.map(d => d.x)))].sort(),
+                    labels: xLabels,
                     ticks: { maxTicksLimit: 12, font: { size: 10 }, maxRotation: 45 },
                     grid: { display: false },
                 },
@@ -376,6 +408,7 @@ function renderChart(metric, historyData) {
             },
         },
     });
+    historyChart._fieldcoreMetric = metric;
 }
 
 /* ── Leaflet map ─────────────────────────────────────────────────────── */
