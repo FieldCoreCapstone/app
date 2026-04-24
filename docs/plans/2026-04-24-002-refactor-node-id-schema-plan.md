@@ -1,7 +1,7 @@
 ---
 title: "refactor: Switch nodes to integer id + derived field_{id} name"
 type: refactor
-status: active
+status: completed
 date: 2026-04-24
 ---
 
