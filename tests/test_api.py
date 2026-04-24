@@ -166,11 +166,26 @@ class TestSensors:
         assert len(data) >= 1
 
     def test_history_new_ranges_return_200(self, client):
-        """15m, 1h, and 12h are valid ranges after the range-set refresh."""
+        """15m, 1h, and 12h are valid ranges after the range-set refresh.
+
+        Seeds a reading so 1h and 12h actually exercise the new bucket SQL
+        with real data. 15m is skipped for the data assertion because the
+        minute-bucket boundary can legitimately miss a just-inserted row
+        when the clock rolls over between insert and query.
+        """
+        self._add_node(client)
+        client.post("/api/sensor/reading", json={
+            "node_id": "Node-001",
+            "temperature": 22.0,
+            "moisture": 50,
+        })
         for rng in ("15m", "1h", "12h"):
             resp = client.get(f"/api/sensor/history?range={rng}")
             assert resp.status_code == 200, f"{rng} returned {resp.status_code}"
-            assert isinstance(resp.get_json(), list)
+            data = resp.get_json()
+            assert isinstance(data, list)
+            if rng in ("1h", "12h"):
+                assert len(data) >= 1, f"{rng} returned no rows with seeded data"
 
     def test_history_default_range_is_7d(self, client):
         """Omitting the range parameter defaults to 7d (not 24h)."""
@@ -189,7 +204,8 @@ class TestSensors:
         """1y was dropped from the range set; the API now returns 400 for it."""
         resp = client.get("/api/sensor/history?range=1y")
         assert resp.status_code == 400
-        assert "1y" not in resp.get_json()["error"].split(":", 1)[1]
+        # Error body must not advertise 1y as a valid option.
+        assert "1y" not in resp.get_json()["error"]
 
     def test_history_1h_returns_seeded_reading(self, client):
         """A reading inserted moments ago shows up in the 1h window.

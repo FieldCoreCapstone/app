@@ -21,10 +21,11 @@ const CHART_COLORS = [
     '#38B2AC', // teal
 ];
 
-// Human-readable labels for the Empty state message. `data-range` and
+// Human-readable windows for the Empty state message. `data-range` and
 // `data-metric` attributes on the chart-controls buttons carry the raw
 // keys (e.g. '15m', 'moisture') which also match backend VALID_RANGES.
-const METRIC_LABELS = { moisture: 'moisture', temperature: 'temperature' };
+// Metric names aren't aliased — the raw key ('moisture', 'temperature')
+// reads naturally in 'No moisture readings in the last 7 days'.
 const RANGE_LABELS = {
     '15m': '15 minutes', '1h': 'hour', '12h': '12 hours',
     '24h': '24 hours',    '7d': '7 days',
@@ -113,14 +114,6 @@ function getMarkerColor(r) {
 /* ── API helpers ──────────────────────────────────────────────────────── */
 async function fetchLatest() {
     const resp = await fetch('/api/sensor/latest');
-    if (!resp.ok) throw new Error(`API error: ${resp.status}`);
-    return resp.json();
-}
-
-async function fetchHistory(range, nodeId) {
-    let url = `/api/sensor/history?range=${range}`;
-    if (nodeId) url += `&node_id=${encodeURIComponent(nodeId)}`;
-    const resp = await fetch(url);
     if (!resp.ok) throw new Error(`API error: ${resp.status}`);
     return resp.json();
 }
@@ -354,9 +347,15 @@ function renderChart(metric, historyData) {
                 },
                 tooltip: {
                     callbacks: {
-                        label: (c) => isTemp
-                            ? `${c.dataset.label}: ${c.parsed.y?.toFixed(1)} °C`
-                            : `${c.dataset.label}: ${c.parsed.y}%`,
+                        label: (c) => {
+                            // Suppress tooltip rows for gap points (y === null);
+                            // returning null from a label callback hides that
+                            // series from the shared-index tooltip.
+                            if (c.parsed.y === null || c.parsed.y === undefined) return null;
+                            return isTemp
+                                ? `${c.dataset.label}: ${c.parsed.y.toFixed(1)} °C`
+                                : `${c.dataset.label}: ${c.parsed.y}%`;
+                        },
                     },
                 },
             },
@@ -808,9 +807,8 @@ function hideChartStates() {
 function setChartEmptyMessage(metric, range) {
     const el = document.querySelector('.chart-empty');
     if (!el) return;
-    const m = METRIC_LABELS[metric] || metric;
     const r = RANGE_LABELS[range] || range;
-    el.textContent = `No ${m} readings in the last ${r}`;
+    el.textContent = `No ${metric} readings in the last ${r}`;
 }
 
 /* ── Chart fetch ──────────────────────────────────────────────────────── */
@@ -836,10 +834,16 @@ async function loadHistory(range, metric, { isAutoRefresh = false } = {}) {
         if (!resp.ok) throw new Error(`API ${resp.status}`);
         const data = await resp.json();
         if (myController !== chartAbort) return;
+        // A 200 with a non-array body is a malformed response — route it
+        // through the error path instead of silently claiming "no readings".
+        if (!Array.isArray(data)) throw new Error('Unexpected response shape');
 
         chartAbort = null;
 
-        if (!Array.isArray(data) || data.length === 0) {
+        if (data.length === 0) {
+            // On auto-refresh ticks keep the last good chart visible — a
+            // transient empty window mid-session shouldn't wipe the chart.
+            if (isAutoRefresh) return;
             setChartEmptyMessage(metric, range);
             showChartState('empty');
             if (historyChart) { historyChart.destroy(); historyChart = null; }
@@ -849,7 +853,14 @@ async function loadHistory(range, metric, { isAutoRefresh = false } = {}) {
         hideChartStates();
         renderChart(metric, data);
     } catch (err) {
-        if (err.name === 'AbortError') return; // a newer call is in flight
+        if (err.name === 'AbortError') {
+            // Clear chartAbort only if this controller is still the "current"
+            // one — normally a newer call already overwrote it, but if this
+            // was the last pending fetch with no successor, the livelock guard
+            // would otherwise block every future auto-tick.
+            if (myController === chartAbort) chartAbort = null;
+            return;
+        }
         // Only this controller's failure matters.
         if (myController !== chartAbort) return;
         chartAbort = null;
