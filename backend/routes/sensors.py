@@ -2,13 +2,15 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
-from backend.models.database import get_history, get_latest_readings, get_node, insert_reading
+from backend.models.database import _RANGE_MAP, get_history, get_latest_readings, get_node, insert_reading
+from backend.routes.nodes import _NODE_ID_ERROR, _validate_node_id
 
 logger = logging.getLogger(__name__)
 
 sensors_bp = Blueprint("sensors", __name__)
 
-VALID_RANGES = {"15m", "1h", "12h", "24h", "7d", "1m", "3m"}
+# Derived from _RANGE_MAP so the route guard and the SQL dispatch can never drift.
+VALID_RANGES = frozenset(_RANGE_MAP.keys())
 
 
 @sensors_bp.route("/api/sensor/latest")
@@ -24,8 +26,22 @@ def history():
     if range_label not in VALID_RANGES:
         return jsonify({"error": f"Invalid range. Use one of: {', '.join(sorted(VALID_RANGES))}"}), 400
 
-    node_id = request.args.get("node_id")
+    raw_node_id = request.args.get("node_id")
+    node_id = None
+    if raw_node_id is not None:
+        # Query-string values are always strings — coerce to int here.
+        try:
+            node_id = int(raw_node_id)
+        except (ValueError, TypeError):
+            return jsonify({"error": _NODE_ID_ERROR}), 400
+        if node_id < 1:
+            return jsonify({"error": _NODE_ID_ERROR}), 400
+
     data = get_history(range_label, node_id=node_id)
+    # Defensive — VALID_RANGES is derived from _RANGE_MAP so they can't drift,
+    # but if get_history ever returns None we'd rather 500 than silently jsonify null.
+    if data is None:
+        return jsonify({"error": f"Unsupported range: {range_label}"}), 500
     return jsonify(data)
 
 
@@ -41,9 +57,13 @@ def ingest_reading():
     if missing:
         return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
 
+    node_id, err = _validate_node_id(data["node_id"])
+    if err:
+        return jsonify({"error": err}), 400
+
     # Verify the node exists
-    if not get_node(data["node_id"]):
-        return jsonify({"error": f"Unknown node_id: '{data['node_id']}'"}), 404
+    if not get_node(node_id):
+        return jsonify({"error": f"Unknown node_id: {node_id}"}), 404
 
     try:
         moisture = int(data["moisture"])
@@ -54,7 +74,7 @@ def ingest_reading():
         return jsonify({"error": "moisture and battery must be integers; temperature must be a number"}), 400
 
     reading_id = insert_reading(
-        node_id=data["node_id"],
+        node_id=node_id,
         moisture=moisture,
         temperature=temperature,
         battery=battery,

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS nodes (
-    node_id     TEXT PRIMARY KEY,
+    id          INTEGER PRIMARY KEY,
     name        TEXT NOT NULL,
     latitude    REAL NOT NULL,
     longitude   REAL NOT NULL,
@@ -23,13 +23,13 @@ CREATE TABLE IF NOT EXISTS nodes (
 
 CREATE TABLE IF NOT EXISTS readings (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    node_id     TEXT NOT NULL,
+    node_id     INTEGER NOT NULL,
     timestamp   DATETIME NOT NULL DEFAULT (datetime('now')),
     battery     INTEGER,
     moisture    INTEGER,
     temperature REAL,
     signal_rssi INTEGER,
-    FOREIGN KEY (node_id) REFERENCES nodes(node_id)
+    FOREIGN KEY (node_id) REFERENCES nodes(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_readings_node_time

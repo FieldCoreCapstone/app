@@ -29,20 +29,22 @@ _running = True
 INTERVAL_SECONDS = 900  # 15 minutes
 
 # Each mock node: (node_id, base_moisture_pct, moisture_variance, temp_offset, initial_vcc_mv)
+# node_id is an integer matching the `nodes.id` PK in the database. Ids 2-13
+# are used; id=1 is reserved for the real Arduino hardware node.
 # Moisture is percent (0-100). VCC is millivolts of the Arduino 5V rail.
 MOCK_NODES = [
-    ("RIDGE_04",  40, 6, -1.0,  5100),
-    ("CREEK_05",  88, 8,  0.5,  5080),
-    ("POND_06",   78, 6,  0.8,  5150),
-    ("TIMBER_07", 68, 7, -0.5,  5120),
-    ("HOLLOW_08", 85, 9,  1.0,  5050),
-    ("BENCH_09",  52, 5, -1.5,  5180),
-    ("SPRING_10", 92, 4,  0.3,  5000),
-    ("GATE_11",   57, 7, -0.8,  5100),
-    ("BLUFF_12",  28, 4, -2.5,  5080),
-    ("BARN_13",   71, 6,  0.2,  5150),
-    ("SOUTH_02",  46, 4, -2.0,  5120),
-    ("EAST_03",   83, 10, 1.5,  4980),
+    ( 2, 46,  4, -2.0, 5120),
+    ( 3, 83, 10,  1.5, 4980),
+    ( 4, 40,  6, -1.0, 5100),
+    ( 5, 88,  8,  0.5, 5080),
+    ( 6, 78,  6,  0.8, 5150),
+    ( 7, 68,  7, -0.5, 5120),
+    ( 8, 85,  9,  1.0, 5050),
+    ( 9, 52,  5, -1.5, 5180),
+    (10, 92,  4,  0.3, 5000),
+    (11, 57,  7, -0.8, 5100),
+    (12, 28,  4, -2.5, 5080),
+    (13, 71,  6,  0.2, 5150),
 ]
 
 

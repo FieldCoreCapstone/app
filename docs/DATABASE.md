@@ -20,8 +20,8 @@ The database uses a **normalized design** with two primary tables:
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
-| `node_id` | TEXT | PRIMARY KEY | Unique sensor node identifier (e.g., `NORTH_01`) |
-| `name` | TEXT | NOT NULL | Human-readable name (e.g., "North Corn Field") |
+| `id` | INTEGER | PRIMARY KEY | Unique sensor node identifier (e.g., `1`). Explicit at insert — not AUTOINCREMENT. |
+| `name` | TEXT | NOT NULL | Human-readable name. Defaults to `field_{id}` when omitted at creation. |
 | `latitude` | REAL | NOT NULL | Latitude coordinate |
 | `longitude` | REAL | NOT NULL | Longitude coordinate |
 | `installed` | DATE | | Installation date |
@@ -32,10 +32,10 @@ The database uses a **normalized design** with two primary tables:
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
 | `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | Auto-incrementing row ID |
-| `node_id` | TEXT | NOT NULL, FK -> nodes | References the source sensor node |
+| `node_id` | INTEGER | NOT NULL, FK -> nodes(id) | References the source sensor node |
 | `timestamp` | DATETIME | NOT NULL, DEFAULT now (UTC) | When the reading was recorded |
-| `battery` | INTEGER | | Battery level percentage |
-| `moisture` | INTEGER | | Raw soil capacitance value (0-700) |
+| `battery` | INTEGER | | Battery level percentage (0-100) |
+| `moisture` | INTEGER | | Soil moisture percent (0-100) |
 | `temperature` | REAL | | Temperature in Celsius |
 | `signal_rssi` | INTEGER | | LoRa signal strength (dBm) |
 
@@ -75,7 +75,7 @@ python -m backend.scripts.init_db
 
 ## Seeding Test Data
 
-The seed script generates 13 nodes with 60 days of realistic sensor data including diurnal temperature cycles, per-node moisture profiles, and a 10-day drying trend.
+The seed script generates 14 nodes (ids `1`–`14`, names `field_1` through `field_14`) with 60 days of realistic sensor data including diurnal temperature cycles, per-node moisture profiles, and a 10-day drying trend.
 
 ```bash
 # Via Python

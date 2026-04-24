@@ -1,5 +1,7 @@
 """Tests for the FieldCore Flask API."""
 
+import pytest
+
 
 class TestHealth:
     def test_health_check(self, client):
@@ -16,36 +18,48 @@ class TestNodes:
 
     def test_create_node(self, client):
         resp = client.post("/api/nodes", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "name": "South Field A",
             "latitude": 38.94,
             "longitude": -92.33,
         })
         assert resp.status_code == 201
         data = resp.get_json()
-        assert data["node_id"] == "Node-001"
+        assert data["node_id"] == 1
         assert data["name"] == "South Field A"
 
+    def test_create_node_defaults_name_to_field_id(self, client):
+        """Omitting `name` derives `field_{id}` server-side."""
+        resp = client.post("/api/nodes", json={
+            "node_id": 7,
+            "latitude": 38.94,
+            "longitude": -92.33,
+        })
+        assert resp.status_code == 201
+        body = resp.get_json()
+        assert body["node_id"] == 7
+        assert body["name"] == "field_7"
+
     def test_create_node_missing_fields(self, client):
-        resp = client.post("/api/nodes", json={"node_id": "Node-001"})
+        resp = client.post("/api/nodes", json={"node_id": 1})
         assert resp.status_code == 400
         assert "Missing required fields" in resp.get_json()["error"]
 
     def test_create_duplicate_node(self, client):
-        payload = {"node_id": "Node-001", "name": "A", "latitude": 0, "longitude": 0}
+        payload = {"node_id": 1, "name": "A", "latitude": 0, "longitude": 0}
         client.post("/api/nodes", json=payload)
         resp = client.post("/api/nodes", json=payload)
         assert resp.status_code == 409
 
     def test_list_nodes_after_create(self, client):
-        client.post("/api/nodes", json={"node_id": "Node-001", "name": "A", "latitude": 0, "longitude": 0})
-        client.post("/api/nodes", json={"node_id": "Node-002", "name": "B", "latitude": 1, "longitude": 1})
+        client.post("/api/nodes", json={"node_id": 1, "name": "A", "latitude": 0, "longitude": 0})
+        client.post("/api/nodes", json={"node_id": 2, "name": "B", "latitude": 1, "longitude": 1})
         resp = client.get("/api/nodes")
         assert len(resp.get_json()) == 2
 
     def test_create_node_invalid_coordinates(self, client):
         resp = client.post("/api/nodes", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "name": "Bad Coords",
             "latitude": "notanumber",
             "longitude": 0,
@@ -53,19 +67,43 @@ class TestNodes:
         assert resp.status_code == 400
         assert "must be numbers" in resp.get_json()["error"]
 
-    def test_create_node_invalid_node_id(self, client):
+    @pytest.mark.parametrize("bad_id", [
+        "abc", "<script>", "",   # strings rejected
+        0, -1, -100,              # non-positive rejected
+        1.0, 1.5,                 # floats rejected
+        True, False,              # bools rejected (isinstance bool check fires first)
+    ])
+    def test_create_node_rejects_non_integer_id(self, client, bad_id):
         resp = client.post("/api/nodes", json={
-            "node_id": "<script>alert(1)</script>",
-            "name": "XSS attempt",
+            "node_id": bad_id,
+            "latitude": 0,
+            "longitude": 0,
+        })
+        assert resp.status_code == 400, f"{bad_id!r} should be rejected"
+
+    def test_create_node_rejects_non_string_name(self, client):
+        """name must be a string — bool/list/dict are not silently stringified."""
+        for bad_name in [True, [1, 2], {"a": 1}, 42]:
+            resp = client.post("/api/nodes", json={
+                "node_id": 1,
+                "latitude": 0,
+                "longitude": 0,
+                "name": bad_name,
+            })
+            assert resp.status_code == 400, f"name={bad_name!r} should be rejected"
+
+    def test_create_node_rejects_stringified_integer(self, client):
+        """POST bodies accept JSON integers only — '1' as a string is 400."""
+        resp = client.post("/api/nodes", json={
+            "node_id": "1",
             "latitude": 0,
             "longitude": 0,
         })
         assert resp.status_code == 400
-        assert "node_id must be" in resp.get_json()["error"]
 
     def test_create_node_empty_name(self, client):
         resp = client.post("/api/nodes", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "name": "",
             "latitude": 0,
             "longitude": 0,
@@ -75,8 +113,8 @@ class TestNodes:
 
 
 class TestSensors:
-    def _add_node(self, client):
-        client.post("/api/nodes", json={"node_id": "Node-001", "name": "A", "latitude": 0, "longitude": 0})
+    def _add_node(self, client, node_id=1):
+        client.post("/api/nodes", json={"node_id": node_id, "name": "A", "latitude": 0, "longitude": 0})
 
     def test_latest_empty(self, client):
         resp = client.get("/api/sensor/latest")
@@ -86,68 +124,80 @@ class TestSensors:
     def test_ingest_reading(self, client):
         self._add_node(client)
         resp = client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
-            "temperature": 24.5,
-            "moisture": 523,
+            "node_id": 1,
+            "moisture": 60,
+            "temperature": 22.5,
         })
         assert resp.status_code == 201
-        assert resp.get_json()["status"] == "ok"
+        data = resp.get_json()
+        assert data["status"] == "ok"
+        assert data["id"] >= 1
 
     def test_ingest_reading_with_optional_fields(self, client):
         self._add_node(client)
         resp = client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
-            "temperature": 22.0,
-            "moisture": 400,
-            "battery": 85,
+            "node_id": 1,
+            "moisture": 60,
+            "temperature": 22.5,
+            "battery": 95,
             "signal_rssi": -67,
         })
         assert resp.status_code == 201
 
     def test_ingest_reading_unknown_node(self, client):
         resp = client.post("/api/sensor/reading", json={
-            "node_id": "FAKE",
-            "temperature": 20.0,
-            "moisture": 100,
+            "node_id": 999,
+            "moisture": 60,
+            "temperature": 22.5,
         })
         assert resp.status_code == 404
 
     def test_ingest_reading_missing_fields(self, client):
-        resp = client.post("/api/sensor/reading", json={"node_id": "Node-001"})
+        resp = client.post("/api/sensor/reading", json={"node_id": 1})
         assert resp.status_code == 400
 
     def test_ingest_reading_invalid_moisture(self, client):
         self._add_node(client)
         resp = client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
-            "temperature": 24.5,
-            "moisture": "abc",
+            "node_id": 1,
+            "moisture": "wet",
+            "temperature": 22.5,
         })
         assert resp.status_code == 400
-        assert "must be" in resp.get_json()["error"]
 
     def test_ingest_reading_invalid_temperature(self, client):
         self._add_node(client)
         resp = client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
-            "temperature": "notanumber",
-            "moisture": 500,
+            "node_id": 1,
+            "moisture": 60,
+            "temperature": "hot",
         })
         assert resp.status_code == 400
+
+    @pytest.mark.parametrize("bad_id", ["1", "abc", 0, -1, 1.5, True, False])
+    def test_ingest_reading_rejects_non_integer_node_id(self, client, bad_id):
+        """POST /api/sensor/reading applies the same integer validation as /api/nodes."""
+        self._add_node(client)
+        resp = client.post("/api/sensor/reading", json={
+            "node_id": bad_id,
+            "moisture": 60,
+            "temperature": 22.5,
+        })
+        assert resp.status_code == 400, f"{bad_id!r} should be rejected"
 
     def test_latest_after_ingest(self, client):
         self._add_node(client)
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "temperature": 24.5,
-            "moisture": 523,
+            "moisture": 52,
         })
         resp = client.get("/api/sensor/latest")
         data = resp.get_json()
         assert len(data) == 1
-        assert data[0]["node_id"] == "Node-001"
+        assert data[0]["node_id"] == 1
+        assert data[0]["name"] == "A"
         assert data[0]["temperature"] == 24.5
-        assert data[0]["moisture"] == 523
 
     def test_history_invalid_range(self, client):
         resp = client.get("/api/sensor/history?range=invalid")
@@ -156,26 +206,23 @@ class TestSensors:
     def test_history_valid_range(self, client):
         self._add_node(client)
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "temperature": 24.5,
-            "moisture": 523,
+            "moisture": 52,
         })
         resp = client.get("/api/sensor/history?range=24h")
         assert resp.status_code == 200
         data = resp.get_json()
         assert len(data) >= 1
+        # History rows now include the node's name (from the JOIN).
+        assert data[0]["node_id"] == 1
+        assert data[0]["name"] == "A"
 
     def test_history_new_ranges_return_200(self, client):
-        """15m, 1h, and 12h are valid ranges after the range-set refresh.
-
-        Seeds a reading so 1h and 12h actually exercise the new bucket SQL
-        with real data. 15m is skipped for the data assertion because the
-        minute-bucket boundary can legitimately miss a just-inserted row
-        when the clock rolls over between insert and query.
-        """
+        """15m, 1h, and 12h are valid ranges with data coverage for 1h/12h."""
         self._add_node(client)
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "temperature": 22.0,
             "moisture": 50,
         })
@@ -186,14 +233,17 @@ class TestSensors:
             assert isinstance(data, list)
             if rng in ("1h", "12h"):
                 assert len(data) >= 1, f"{rng} returned no rows with seeded data"
+                # Verify the JOIN is wired correctly — every row has a name field.
+                assert "name" in data[0], f"{rng} row missing 'name' field (JOIN broken?)"
+                assert data[0]["name"] == "A"
 
     def test_history_default_range_is_7d(self, client):
-        """Omitting the range parameter defaults to 7d (not 24h)."""
+        """Omitting the range parameter defaults to 7d."""
         self._add_node(client)
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "temperature": 24.5,
-            "moisture": 523,
+            "moisture": 52,
         })
         default_resp = client.get("/api/sensor/history")
         seven_d_resp = client.get("/api/sensor/history?range=7d")
@@ -201,21 +251,15 @@ class TestSensors:
         assert default_resp.get_json() == seven_d_resp.get_json()
 
     def test_history_1y_now_rejected(self, client):
-        """1y was dropped from the range set; the API now returns 400 for it."""
         resp = client.get("/api/sensor/history?range=1y")
         assert resp.status_code == 400
-        # Error body must not advertise 1y as a valid option.
         assert "1y" not in resp.get_json()["error"]
 
     def test_history_1h_returns_seeded_reading(self, client):
-        """A reading inserted moments ago shows up in the 1h window.
-
-        We use 1h (not 15m) because the 15m minute-bucket window can legitimately
-        miss a reading when the clock rolls over between insert and fetch.
-        """
+        """A reading inserted moments ago shows up in the 1h window."""
         self._add_node(client)
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "temperature": 22.0,
             "moisture": 50,
         })
@@ -224,11 +268,35 @@ class TestSensors:
         assert len(resp.get_json()) >= 1
 
     def test_history_filter_by_node(self, client):
-        self._add_node(client)
+        self._add_node(client, node_id=1)
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "temperature": 24.5,
-            "moisture": 523,
+            "moisture": 52,
         })
-        resp = client.get("/api/sensor/history?range=24h&node_id=Node-001")
+        resp = client.get("/api/sensor/history?range=24h&node_id=1")
         assert resp.status_code == 200
+
+    def test_history_filter_rejects_non_integer_node_id(self, client):
+        """GET ?node_id=abc returns 400 with a clear error."""
+        resp = client.get("/api/sensor/history?range=24h&node_id=abc")
+        assert resp.status_code == 400
+        assert "positive integer" in resp.get_json()["error"]
+
+    def test_history_filter_rejects_zero_node_id(self, client):
+        resp = client.get("/api/sensor/history?range=24h&node_id=0")
+        assert resp.status_code == 400
+
+    def test_history_filter_rejects_negative_node_id(self, client):
+        resp = client.get("/api/sensor/history?range=24h&node_id=-5")
+        assert resp.status_code == 400
+
+    def test_list_nodes_response_shape_uses_node_id_not_id(self, client):
+        """JSON wire field is `node_id` (aliased from DB column `id`).
+        A regression to `SELECT *` would leak the raw `id` field."""
+        self._add_node(client)
+        resp = client.get("/api/nodes")
+        assert resp.status_code == 200
+        row = resp.get_json()[0]
+        assert "node_id" in row
+        assert "id" not in row

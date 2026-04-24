@@ -76,8 +76,14 @@ class TestSensorTable:
     def test_table_headers_present(self, client):
         resp = client.get("/")
         html = _html(resp)
-        for header in ["Node ID", "Battery Level", "Moisture Level", "Temperature"]:
+        for header in ["Node", "Battery Level", "Moisture Level", "Temperature"]:
             assert header in html, f"Missing table header: {header}"
+
+    def test_node_column_header_is_node(self, client):
+        """Header reads 'Node' (not 'Node ID') now that the cell shows a name."""
+        html = _html(client.get("/"))
+        assert "<th>Node</th>" in html
+        assert "<th>Node ID</th>" not in html
 
     def test_table_body_element_present(self, client):
         resp = client.get("/")
@@ -93,53 +99,52 @@ class TestSensorTable:
         assert "<tr>" not in tbody_content
 
     def test_node_appears_in_table_after_ingest(self, client):
+        """Creating a node without a name derives `field_{id}`; table renders it."""
         client.post("/api/nodes", json={
-            "node_id": "Node-001",
-            "name": "South Field A",
+            "node_id": 1,
             "latitude": 38.94,
             "longitude": -92.33,
         })
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "temperature": 24.5,
-            "moisture": 420,
+            "moisture": 52,
             "battery": 85,
         })
         resp = client.get("/")
         html = _html(resp)
-        assert "Node-001" in html
+        assert "field_1" in html
 
     def test_multiple_nodes_appear_in_table(self, client):
+        """Three nodes created via POST without names — all three derived names render."""
         for i in range(1, 4):
-            node_id = f"Node-00{i}"
             client.post("/api/nodes", json={
-                "node_id": node_id,
-                "name": f"Field {i}",
+                "node_id": i,
                 "latitude": 38.0 + i,
                 "longitude": -92.0 - i,
             })
             client.post("/api/sensor/reading", json={
-                "node_id": node_id,
+                "node_id": i,
                 "temperature": 20.0 + i,
-                "moisture": 300 + i * 50,
+                "moisture": 50 + i,
                 "battery": 70 + i,
             })
         resp = client.get("/")
         html = _html(resp)
         for i in range(1, 4):
-            assert f"Node-00{i}" in html
+            assert f"field_{i}" in html
 
     def test_battery_percentage_displayed(self, client):
         client.post("/api/nodes", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "name": "A",
             "latitude": 38.0,
             "longitude": -92.0,
         })
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "temperature": 22.0,
-            "moisture": 350,
+            "moisture": 45,
             "battery": 75,
         })
         resp = client.get("/")
@@ -148,15 +153,15 @@ class TestSensorTable:
     def test_high_temp_class_applied(self, client):
         """Rows with temperature > 30 should carry the 'high' CSS class."""
         client.post("/api/nodes", json={
-            "node_id": "Node-H",
+            "node_id": 99,
             "name": "Hot Field",
             "latitude": 38.0,
             "longitude": -92.0,
         })
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-H",
+            "node_id": 99,
             "temperature": 35.0,
-            "moisture": 200,
+            "moisture": 20,
             "battery": 50,
         })
         resp = client.get("/")
@@ -166,15 +171,15 @@ class TestSensorTable:
     def test_normal_temp_class_applied(self, client):
         """Rows with temperature <= 30 should carry the 'normal' CSS class."""
         client.post("/api/nodes", json={
-            "node_id": "Node-N",
+            "node_id": 50,
             "name": "Normal Field",
             "latitude": 38.0,
             "longitude": -92.0,
         })
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-N",
+            "node_id": 50,
             "temperature": 22.0,
-            "moisture": 400,
+            "moisture": 45,
             "battery": 80,
         })
         resp = client.get("/")
@@ -183,15 +188,15 @@ class TestSensorTable:
 
     def test_moisture_bar_present_for_node(self, client):
         client.post("/api/nodes", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "name": "A",
             "latitude": 38.0,
             "longitude": -92.0,
         })
         client.post("/api/sensor/reading", json={
-            "node_id": "Node-001",
+            "node_id": 1,
             "temperature": 20.0,
-            "moisture": 490,
+            "moisture": 62,
             "battery": 90,
         })
         resp = client.get("/")

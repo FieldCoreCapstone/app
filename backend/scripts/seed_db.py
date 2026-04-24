@@ -1,4 +1,9 @@
-"""Seed the FieldCore database with 13 nodes and 2 months of historical data."""
+"""Seed the FieldCore database with 14 nodes and 2 months of historical data.
+
+Node ids are integers 1..14 with names auto-derived as field_1..field_14.
+Node 1 is the real Arduino hardware node; nodes 2-13 feed from the mock
+simulator; node 14 is a spare demo node.
+"""
 
 import logging
 import math
@@ -29,28 +34,29 @@ def seed_db(interval_minutes=30, db_path=None):
         cursor.execute("DELETE FROM nodes")
 
         # 1. Create Nodes
-        # node_id '1' matches the int the Arduino sends as nodeID.
-        # Legacy 'FIELD_01' kept alongside for historical continuity.
+        # Integer ids 1..14, names auto-derived as field_N. Node 1 is the
+        # real Arduino; nodes 2-13 match the mock simulator's MOCK_NODES;
+        # node 14 is a spare demo node.
         nodes = [
-            ('1',        'Arduino Field Node', 37.4225, -91.5680, '2026-04-20', 'Real hardware node — live Arduino over LoRa'),
-            ('FIELD_01', 'Primary Field Node', 37.4225, -91.5680, '2025-12-01', 'Legacy mock identifier — retained for history'),
-            ('SOUTH_02', 'South Soy Plot',      37.4190, -91.5645, '2025-12-05', 'Mock node — high ground, sandy soil'),
-            ('EAST_03',  'East Pasture',         37.4210, -91.5610, '2025-12-10', 'Mock node — near the weather station'),
-            ('RIDGE_04', 'Ridge Alfalfa',        37.4240, -91.5650, '2026-01-03', 'Mock node — hilltop, windy exposure'),
-            ('CREEK_05', 'Creek Bottom West',    37.4178, -91.5700, '2026-01-08', 'Mock node — flood-prone lowland'),
-            ('POND_06',  'Pond Field',           37.4200, -91.5725, '2026-01-12', 'Mock node — adjacent to stock pond'),
-            ('TIMBER_07','Timber Edge North',    37.4250, -91.5615, '2026-01-15', 'Mock node — forest-field boundary'),
-            ('HOLLOW_08','Hollow Meadow',        37.4170, -91.5580, '2026-01-20', 'Mock node — sheltered low area'),
-            ('BENCH_09', 'Bench Terrace',        37.4235, -91.5570, '2026-02-01', 'Mock node — terraced hillside plot'),
-            ('SPRING_10','Spring Fed Plot',      37.4195, -91.5550, '2026-02-05', 'Mock node — natural spring nearby'),
-            ('GATE_11',  'Gate Field South',     37.4160, -91.5635, '2026-02-10', 'Mock node — near main access gate'),
-            ('BLUFF_12', 'Bluff Overlook',       37.4255, -91.5700, '2026-02-15', 'Mock node — rocky soil, exposed'),
-            ('BARN_13',  'Barn Lot East',        37.4215, -91.5540, '2026-02-20', 'Mock node — close to equipment barn'),
+            ( 1, 'field_1',  37.4225, -91.5680, '2026-04-20', 'Real hardware node — live Arduino over LoRa'),
+            ( 2, 'field_2',  37.4190, -91.5645, '2025-12-05', 'Mock node — high ground, sandy soil'),
+            ( 3, 'field_3',  37.4210, -91.5610, '2025-12-10', 'Mock node — near the weather station'),
+            ( 4, 'field_4',  37.4240, -91.5650, '2026-01-03', 'Mock node — hilltop, windy exposure'),
+            ( 5, 'field_5',  37.4178, -91.5700, '2026-01-08', 'Mock node — flood-prone lowland'),
+            ( 6, 'field_6',  37.4200, -91.5725, '2026-01-12', 'Mock node — adjacent to stock pond'),
+            ( 7, 'field_7',  37.4250, -91.5615, '2026-01-15', 'Mock node — forest-field boundary'),
+            ( 8, 'field_8',  37.4170, -91.5580, '2026-01-20', 'Mock node — sheltered low area'),
+            ( 9, 'field_9',  37.4235, -91.5570, '2026-02-01', 'Mock node — terraced hillside plot'),
+            (10, 'field_10', 37.4195, -91.5550, '2026-02-05', 'Mock node — natural spring nearby'),
+            (11, 'field_11', 37.4160, -91.5635, '2026-02-10', 'Mock node — near main access gate'),
+            (12, 'field_12', 37.4255, -91.5700, '2026-02-15', 'Mock node — rocky soil, exposed'),
+            (13, 'field_13', 37.4215, -91.5540, '2026-02-20', 'Mock node — close to equipment barn'),
+            (14, 'field_14', 37.4225, -91.5680, '2025-12-01', 'Spare demo node — adjacent to field_1'),
         ]
 
         logger.info("Inserting nodes...")
         cursor.executemany(
-            "INSERT INTO nodes (node_id, name, latitude, longitude, installed, notes) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO nodes (id, name, latitude, longitude, installed, notes) VALUES (?, ?, ?, ?, ?, ?)",
             nodes
         )
 
@@ -60,22 +66,23 @@ def seed_db(interval_minutes=30, db_path=None):
 
         logger.info("Generating readings from %s to %s...", start_date.date(), end_date.date())
 
-        # Moisture baselines are expressed as percent (0-100).
+        # Moisture baselines are expressed as percent (0-100). Keys are integer
+        # ids matching the `nodes` table above.
         node_configs = {
-            '1':         {'base_m': 64, 'm_var': 7, 't_offset': 0},
-            'FIELD_01':  {'base_m': 64, 'm_var': 7, 't_offset': 0},
-            'SOUTH_02':  {'base_m': 46, 'm_var': 4, 't_offset': -2},
-            'EAST_03':   {'base_m': 83, 'm_var': 11, 't_offset': 1.5},
-            'RIDGE_04':  {'base_m': 40, 'm_var': 6, 't_offset': -1},
-            'CREEK_05':  {'base_m': 89, 'm_var': 9, 't_offset': 0.5},
-            'POND_06':   {'base_m': 79, 'm_var': 6, 't_offset': 0.8},
-            'TIMBER_07': {'base_m': 69, 'm_var': 8, 't_offset': -0.5},
-            'HOLLOW_08': {'base_m': 86, 'm_var': 10, 't_offset': 1.0},
-            'BENCH_09':  {'base_m': 53, 'm_var': 5, 't_offset': -1.5},
-            'SPRING_10': {'base_m': 93, 'm_var': 4, 't_offset': 0.3},
-            'GATE_11':   {'base_m': 57, 'm_var': 7, 't_offset': -0.8},
-            'BLUFF_12':  {'base_m': 29, 'm_var': 4, 't_offset': -2.5},
-            'BARN_13':   {'base_m': 71, 'm_var': 6, 't_offset': 0.2},
+             1: {'base_m': 64, 'm_var':  7, 't_offset':  0.0},
+             2: {'base_m': 46, 'm_var':  4, 't_offset': -2.0},
+             3: {'base_m': 83, 'm_var': 11, 't_offset':  1.5},
+             4: {'base_m': 40, 'm_var':  6, 't_offset': -1.0},
+             5: {'base_m': 89, 'm_var':  9, 't_offset':  0.5},
+             6: {'base_m': 79, 'm_var':  6, 't_offset':  0.8},
+             7: {'base_m': 69, 'm_var':  8, 't_offset': -0.5},
+             8: {'base_m': 86, 'm_var': 10, 't_offset':  1.0},
+             9: {'base_m': 53, 'm_var':  5, 't_offset': -1.5},
+            10: {'base_m': 93, 'm_var':  4, 't_offset':  0.3},
+            11: {'base_m': 57, 'm_var':  7, 't_offset': -0.8},
+            12: {'base_m': 29, 'm_var':  4, 't_offset': -2.5},
+            13: {'base_m': 71, 'm_var':  6, 't_offset':  0.2},
+            14: {'base_m': 68, 'm_var':  7, 't_offset':  0.1},
         }
 
         readings_batch = []
