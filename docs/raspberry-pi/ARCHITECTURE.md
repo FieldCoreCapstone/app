@@ -165,15 +165,15 @@ The key design point: from `process_reading()` onward, the paths are identical. 
 The Arduino transmits a UTF-8 CSV string over LoRa:
 
 ```
-FIELD_01,450,22.5,8.7
+1,62,22.5,5161
 ```
 
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
-| `node_id` | string | Unique node identifier | `FIELD_01` |
-| `moisture` | integer | Raw soil capacitance (0–700) | `450` |
+| `node_id` | integer | Positive integer matching `nodes.id` in the DB | `1` |
+| `moisture` | integer | Soil moisture percent (0–100) | `62` |
 | `temperature` | float | Celsius from SEN0600 | `22.5` |
-| `battery_voltage` | float | Arduino supply voltage (6xAA) | `8.7` |
+| `vcc_millivolts` | integer | Arduino 5V rail in millivolts | `5161` |
 
 ### What's NOT in the Packet
 
@@ -213,7 +213,7 @@ The `process_reading()` function in `services/reading_processor.py` is the singl
 ### Processing Steps
 
 1. **Parse CSV** — Split on commas, expect exactly 4 fields
-2. **Validate types** — node_id is a non-empty string, moisture is an integer, temperature is a float, battery_voltage is a float
+2. **Validate types** — node_id is a positive integer, moisture is an integer percent, temperature is a float, vcc_millivolts is an integer
 3. **Convert battery** — Map 6xAA voltage to 0–100% using the alkaline discharge curve:
 
    | Voltage | Percentage | Battery State |
@@ -235,24 +235,24 @@ The `process_reading()` function in `services/reading_processor.py` is the singl
 
 ### Node Profiles
 
-Each of the 12 mock nodes is configured with distinct characteristics that produce visually distinguishable data on the dashboard:
+Each of the 12 mock nodes uses an integer id matching its row in the `nodes` table and produces visually distinguishable moisture data on the dashboard. Node id `1` is **reserved for the real Arduino hardware** and is absent from the mock list. The dashboard renders the derived `field_N` name for each node:
 
-| Node ID | Name | Moisture Profile | Notes |
+| Node ID | Display Name | Moisture Profile (percent) | Notes |
 |---------|------|-----------------|-------|
-| SOUTH_02 | South Soy Plot | Low (320 ± 30) | Sandy soil, drains fast |
-| EAST_03 | East Pasture | High (580 ± 80) | Near weather station |
-| RIDGE_04 | Ridge Alfalfa | Low (280 ± 40) | Windy hilltop, dries out |
-| CREEK_05 | Creek Bottom West | High (620 ± 60) | Flood-prone lowland |
-| POND_06 | Pond Field | High (550 ± 45) | Adjacent to stock pond |
-| TIMBER_07 | Timber Edge North | Mid (480 ± 55) | Forest-field boundary |
-| HOLLOW_08 | Hollow Meadow | High (600 ± 70) | Sheltered, retains moisture |
-| BENCH_09 | Bench Terrace | Low-mid (370 ± 35) | Terraced hillside |
-| SPRING_10 | Spring Fed Plot | Very high (650 ± 30) | Natural spring nearby |
-| GATE_11 | Gate Field South | Mid (400 ± 50) | Near access gate |
-| BLUFF_12 | Bluff Overlook | Very low (200 ± 25) | Rocky, exposed bluff |
-| BARN_13 | Barn Lot East | Mid (500 ± 45) | Near equipment barn |
+| 2 | field_2 | Low (46 ± 4) | Sandy soil, drains fast |
+| 3 | field_3 | High (83 ± 10) | Near weather station |
+| 4 | field_4 | Low (40 ± 6) | Windy hilltop, dries out |
+| 5 | field_5 | Very high (88 ± 8) | Flood-prone lowland |
+| 6 | field_6 | High (78 ± 6) | Adjacent to stock pond |
+| 7 | field_7 | Mid (68 ± 7) | Forest-field boundary |
+| 8 | field_8 | High (85 ± 9) | Sheltered, retains moisture |
+| 9 | field_9 | Low-mid (52 ± 5) | Terraced hillside |
+| 10 | field_10 | Very high (92 ± 4) | Natural spring nearby |
+| 11 | field_11 | Mid (57 ± 7) | Near access gate |
+| 12 | field_12 | Very low (28 ± 4) | Rocky, exposed bluff |
+| 13 | field_13 | Mid (71 ± 6) | Near equipment barn |
 
-The real hardware node (`FIELD_01`) transmits actual sensor data and is not simulated.
+The real hardware node (id `1`, name `field_1`) transmits actual sensor data and is not simulated.
 
 ### Staggered Timing
 

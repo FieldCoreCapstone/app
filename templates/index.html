@@ -43,7 +43,7 @@
                         <table class="sensor-table">
                             <thead>
                                 <tr>
-                                    <th>Node ID</th>
+                                    <th>Node</th>
                                     <th>Battery Level</th>
                                     <th>Moisture Level</th>
                                     <th>Temperature</th>
@@ -52,7 +52,7 @@
                             <tbody id="sensorTableBody">
                                 {% for row in table_data %}
                                 <tr>
-                                    <td class="node-id">{{ row.node_id }}</td>
+                                    <td class="node-id">{{ row.name }}</td>
                                     <td>
                                         <div class="bar-cell">
                                             <div class="mini-bar">

@@ -153,7 +153,7 @@ kill %1
 ```
 
 This creates `backend/sensors.db` with:
-- 13 nodes (`FIELD_01` is the real hardware node, the rest are mock)
+- 14 nodes numbered `1`-`14` with names `field_1` through `field_14` (id `1` is the real Arduino; ids `2`-`13` mirror the mock simulator; `14` is a spare demo node)
 - 60 days of historical sensor data for charts
 
 ## Service Installation

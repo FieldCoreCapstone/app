@@ -257,10 +257,11 @@ function updateTable(readings) {
         const temp = r.temperature != null ? r.temperature.toFixed(1) : '\u2014';
         const tempHigh = (r.temperature || 0) > 30;
         const batColor = battery >= 70 ? '#68D391' : '#F6AD55';
-        const safeNodeId = escapeHtml(r.node_id || '');
+        const safeNodeId = escapeHtml(r.node_id ?? '');
+        const safeName = escapeHtml(r.name || `field_${r.node_id ?? ''}`);
 
         return `<tr id="row-${safeNodeId}">
-            <td class="node-id">${safeNodeId}</td>
+            <td class="node-id">${safeName}</td>
             <td>
                 <div class="bar-cell">
                     <div class="mini-bar">
@@ -292,19 +293,24 @@ function renderChart(metric, historyData) {
     const dataKey = metric === 'temperature' ? 'avg_temperature' : 'avg_moisture';
     const isTemp  = metric === 'temperature';
 
-    // Group by node_id
+    // Group by node_id. Capture each node's display name from the history
+    // response (backend JOINs nodes so each row carries `name`).
     const byNode = {};
+    const nodeNames = {};
     historyData.forEach(row => {
         if (!byNode[row.node_id]) byNode[row.node_id] = [];
         byNode[row.node_id].push(row);
+        if (row.name) nodeNames[row.node_id] = row.name;
     });
 
-    const nodeIds = Object.keys(byNode).sort();
+    // Object.keys returns strings — sort numerically so ids 1-14 render in
+    // natural order instead of the lexicographic 1, 10, 11, 12, ... .
+    const nodeIds = Object.keys(byNode).sort((a, b) => Number(a) - Number(b));
 
     const datasets = nodeIds.map((nodeId, i) => {
         const rows = byNode[nodeId];
         return {
-            label: nodeId,
+            label: nodeNames[nodeId] || `field_${nodeId}`,
             data: rows.map(r => {
                 const raw = r[dataKey];
                 let y;
@@ -506,7 +512,11 @@ function initMapControlPanel() {
 function updateLeafletMarkers(readings) {
     if (!leafletMap) return;
 
-    const currentIds = new Set(readings.map(r => r.node_id));
+    // String() coercion: Object.keys(leafletMarkers) always returns strings,
+    // so the Set must hold strings too for `has()` to match after the integer
+    // node_id refactor. Without this, every auto-refresh deletes and recreates
+    // every marker (visible flicker + fitBounds never stabilises).
+    const currentIds = new Set(readings.map(r => String(r.node_id)));
 
     // Remove markers for nodes no longer present
     for (const id of Object.keys(leafletMarkers)) {
