@@ -38,7 +38,7 @@ def seed_db(interval_minutes=30, db_path=None):
         # real Arduino; nodes 2-13 match the mock simulator's MOCK_NODES;
         # node 14 is a spare demo node.
         nodes = [
-            ( 1, 'field_1',  37.4225, -91.5680, '2026-04-20', 'Real hardware node — live Arduino over LoRa'),
+            ( 1, 'field_1',  37.4208, -91.5633, '2026-04-20', 'Real hardware node — live Arduino over LoRa, centered in the cluster'),
             ( 2, 'field_2',  37.4190, -91.5645, '2025-12-05', 'Mock node — high ground, sandy soil'),
             ( 3, 'field_3',  37.4210, -91.5610, '2025-12-10', 'Mock node — near the weather station'),
             ( 4, 'field_4',  37.4240, -91.5650, '2026-01-03', 'Mock node — hilltop, windy exposure'),
