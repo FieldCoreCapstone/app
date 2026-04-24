@@ -368,7 +368,7 @@ function renderChart(metric, historyData) {
 
     const yAxis = isTemp
         ? { suggestedMin: 0, suggestedMax: 40, title: { display: true, text: 'Temperature (°C)', font: { size: 11 } }, ticks: { font: { size: 10 } } }
-        : { min: 0, max: 100,                  title: { display: true, text: 'Moisture %',       font: { size: 11 } }, ticks: { font: { size: 10 } } };
+        : { min: 0, max: 60,                   title: { display: true, text: 'Moisture %',       font: { size: 11 } }, ticks: { font: { size: 10 } } };
 
     historyChart = new Chart(ctx, {
         type: 'line',
