@@ -134,7 +134,7 @@ pip install adafruit-blinka adafruit-circuitpython-rfm9x
 
 ## Database Initialization
 
-The Flask app auto-creates the database on first run. To seed it with the 13-node configuration (1 real + 12 mock):
+The Flask app auto-creates the database on first run. To seed it with the 14-node configuration (node `1` is the real Arduino, nodes `2`-`13` feed the mock simulator, node `14` is a spare demo node):
 
 ```bash
 cd /home/pi/app
@@ -155,6 +155,42 @@ kill %1
 This creates `backend/sensors.db` with:
 - 14 nodes numbered `1`-`14` with names `field_1` through `field_14` (id `1` is the real Arduino; ids `2`-`13` mirror the mock simulator; `14` is a spare demo node)
 - 60 days of historical sensor data for charts
+
+## Schema Upgrade (pulling a refactor that changes nodes schema)
+
+When pulling a release that changes the schema of the `nodes` or `readings` tables
+(e.g. the integer-node-id refactor), `git pull` + `systemctl restart fieldcore-web`
+alone is **not enough** — `init_db()` runs only on first boot, so Flask will start
+against the old schema and every API call will fail with an `OperationalError`.
+
+Use this sequence instead:
+
+```bash
+ssh wex@fieldcorepi1.local
+cd ~/app
+
+# 1. (Optional) back up any real Arduino readings you care about.
+#    The path-quoting on node_id matches the OLD TEXT-schema column.
+sqlite3 backend/sensors.db ".mode csv" \
+  ".output ~/readings_backup_$(date +%F).csv" \
+  "SELECT * FROM readings WHERE node_id = '1'"
+
+# 2. Stop all services that write to the DB so the wipe-and-reseed is
+#    not racing an Arduino packet or a mock simulator tick.
+sudo systemctl stop fieldcore-lora fieldcore-mock fieldcore-web
+
+# 3. Pull the new code.
+git pull
+
+# 4. Wipe-and-reseed. seed_db wipes the nodes + readings tables and
+#    re-inserts with the new schema.
+python3 -m backend.scripts.seed_db
+
+# 5. Restart services.
+sudo systemctl start fieldcore-web fieldcore-lora fieldcore-mock
+```
+
+Verify with `curl http://localhost:5001/api/nodes | python3 -m json.tool` — you should see 14 nodes with integer `node_id` fields and `name` values like `field_1`.
 
 ## Service Installation
 
@@ -222,7 +258,7 @@ Check that readings are being inserted (mock simulator):
 curl http://localhost:5001/api/sensor/latest | python3 -m json.tool | head -20
 ```
 
-You should see 13 nodes with recent timestamps.
+You should see 14 nodes with recent timestamps.
 
 View service logs:
 

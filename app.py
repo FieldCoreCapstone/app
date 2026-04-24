@@ -92,6 +92,7 @@ def create_app():
 
             nodes.append({
                 "id": r["node_id"],
+                "name": r.get("name") or f"field_{r['node_id']}",
                 "x": r.get("latitude", 0.5),
                 "y": r.get("longitude", 0.5),
                 "moisture": moisture_level(pct),

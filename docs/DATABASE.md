@@ -75,7 +75,7 @@ python -m backend.scripts.init_db
 
 ## Seeding Test Data
 
-The seed script generates 13 nodes with 60 days of realistic sensor data including diurnal temperature cycles, per-node moisture profiles, and a 10-day drying trend.
+The seed script generates 14 nodes (ids `1`–`14`, names `field_1` through `field_14`) with 60 days of realistic sensor data including diurnal temperature cycles, per-node moisture profiles, and a 10-day drying trend.
 
 ```bash
 # Via Python

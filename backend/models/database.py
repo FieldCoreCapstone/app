@@ -1,6 +1,7 @@
 """SQLite database helpers for FieldCore."""
 
 import logging
+import re
 import sqlite3
 from contextlib import contextmanager
 
@@ -53,8 +54,12 @@ def get_node(node_id, db_path=None):
         return dict(row) if row else None
 
 
-def create_node(node_id, latitude, longitude, name=None, installed=None, notes=None, db_path=None):
-    """Insert a node. `name` defaults to f"field_{node_id}" if not supplied."""
+def create_node(node_id, *, latitude, longitude, name=None, installed=None, notes=None, db_path=None):
+    """Insert a node. `name` defaults to f"field_{node_id}" if not supplied.
+
+    All arguments after `node_id` are keyword-only to prevent silent coordinate
+    swaps (`create_node(1, -91.5, 37.4)` would otherwise insert inverted lat/lon).
+    """
     if name is None:
         name = f"field_{node_id}"
     with get_db(db_path) as conn:
@@ -132,7 +137,9 @@ def get_history(range_label, node_id=None, db_path=None):
 
     # group_expr references a bare `timestamp` column — prefix the alias so
     # the SQL engine resolves it to the readings table after the JOIN.
-    group_expr = group_expr.replace("timestamp", "r.timestamp")
+    # Use a word-boundary regex so a future format string like 'timestamp-%m'
+    # can't accidentally collide with the substring match.
+    group_expr = re.sub(r"\btimestamp\b", "r.timestamp", group_expr)
 
     conditions = [f"r.timestamp >= {since_expr}"]
     params = []

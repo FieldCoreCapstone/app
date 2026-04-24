@@ -222,7 +222,7 @@ function drawMap(canvas, readings) {
         x: node.nx || 0.5,
         y: node.ny || 0.5,
         color: MOISTURE_COLOR[moistureLevel(normalizeMoisture(node.moisture || 0))],
-        label: node.node_id || node.id || '',
+        label: node.name || `field_${node.node_id ?? node.id ?? ''}`,
     }));
     drawNodes(canvas, nodes);
 }
@@ -233,7 +233,7 @@ function drawMapFromNodes(canvas, serverNodes) {
         x: node.x,
         y: node.y,
         color: MOISTURE_COLOR[node.moisture] || '#A0AEC0',
-        label: node.id || '',
+        label: node.name || `field_${node.id ?? ''}`,
     }));
     drawNodes(canvas, nodes);
 }
@@ -533,9 +533,14 @@ function updateLeafletMarkers(readings) {
 
         const color = getMarkerColor(r);
 
-        if (leafletMarkers[r.node_id]) {
+        // Keys are stringified so `currentIds.has(markerKey)` and
+        // `leafletMarkers[markerKey]` agree with Object.keys() (which always
+        // returns strings). JS coerces numeric object keys to strings anyway,
+        // but the explicit String() keeps the intent uniform.
+        const markerKey = String(r.node_id);
+        if (leafletMarkers[markerKey]) {
             // Update existing marker
-            const marker = leafletMarkers[r.node_id];
+            const marker = leafletMarkers[markerKey];
             marker.setLatLng([lat, lng]);
             marker.setStyle({ fillColor: color });
             // Update popup content if bound
@@ -553,7 +558,7 @@ function updateLeafletMarkers(readings) {
                 fillOpacity: 0.9,
             }).addTo(leafletMap);
             marker.bindPopup(buildPopupContent(r), { maxWidth: 220 });
-            leafletMarkers[r.node_id] = marker;
+            leafletMarkers[markerKey] = marker;
         }
     });
 

@@ -1,5 +1,7 @@
 """Tests for the FieldCore Flask API."""
 
+import pytest
+
 
 class TestHealth:
     def test_health_check(self, client):
@@ -65,23 +67,30 @@ class TestNodes:
         assert resp.status_code == 400
         assert "must be numbers" in resp.get_json()["error"]
 
-    def test_create_node_rejects_non_integer_id(self, client):
-        """Non-numeric strings, zero, and negatives are all 400."""
-        for bad in ["abc", "<script>", ""]:
-            resp = client.post("/api/nodes", json={
-                "node_id": bad,
-                "latitude": 0,
-                "longitude": 0,
-            })
-            assert resp.status_code == 400, f"{bad!r} should be rejected"
+    @pytest.mark.parametrize("bad_id", [
+        "abc", "<script>", "",   # strings rejected
+        0, -1, -100,              # non-positive rejected
+        1.0, 1.5,                 # floats rejected
+        True, False,              # bools rejected (isinstance bool check fires first)
+    ])
+    def test_create_node_rejects_non_integer_id(self, client, bad_id):
+        resp = client.post("/api/nodes", json={
+            "node_id": bad_id,
+            "latitude": 0,
+            "longitude": 0,
+        })
+        assert resp.status_code == 400, f"{bad_id!r} should be rejected"
 
-        for bad in [0, -1, -100]:
+    def test_create_node_rejects_non_string_name(self, client):
+        """name must be a string — bool/list/dict are not silently stringified."""
+        for bad_name in [True, [1, 2], {"a": 1}, 42]:
             resp = client.post("/api/nodes", json={
-                "node_id": bad,
+                "node_id": 1,
                 "latitude": 0,
                 "longitude": 0,
+                "name": bad_name,
             })
-            assert resp.status_code == 400, f"{bad!r} should be rejected"
+            assert resp.status_code == 400, f"name={bad_name!r} should be rejected"
 
     def test_create_node_rejects_stringified_integer(self, client):
         """POST bodies accept JSON integers only — '1' as a string is 400."""
@@ -165,6 +174,17 @@ class TestSensors:
         })
         assert resp.status_code == 400
 
+    @pytest.mark.parametrize("bad_id", ["1", "abc", 0, -1, 1.5, True, False])
+    def test_ingest_reading_rejects_non_integer_node_id(self, client, bad_id):
+        """POST /api/sensor/reading applies the same integer validation as /api/nodes."""
+        self._add_node(client)
+        resp = client.post("/api/sensor/reading", json={
+            "node_id": bad_id,
+            "moisture": 60,
+            "temperature": 22.5,
+        })
+        assert resp.status_code == 400, f"{bad_id!r} should be rejected"
+
     def test_latest_after_ingest(self, client):
         self._add_node(client)
         client.post("/api/sensor/reading", json={
@@ -213,6 +233,9 @@ class TestSensors:
             assert isinstance(data, list)
             if rng in ("1h", "12h"):
                 assert len(data) >= 1, f"{rng} returned no rows with seeded data"
+                # Verify the JOIN is wired correctly — every row has a name field.
+                assert "name" in data[0], f"{rng} row missing 'name' field (JOIN broken?)"
+                assert data[0]["name"] == "A"
 
     def test_history_default_range_is_7d(self, client):
         """Omitting the range parameter defaults to 7d."""
@@ -263,3 +286,17 @@ class TestSensors:
     def test_history_filter_rejects_zero_node_id(self, client):
         resp = client.get("/api/sensor/history?range=24h&node_id=0")
         assert resp.status_code == 400
+
+    def test_history_filter_rejects_negative_node_id(self, client):
+        resp = client.get("/api/sensor/history?range=24h&node_id=-5")
+        assert resp.status_code == 400
+
+    def test_list_nodes_response_shape_uses_node_id_not_id(self, client):
+        """JSON wire field is `node_id` (aliased from DB column `id`).
+        A regression to `SELECT *` would leak the raw `id` field."""
+        self._add_node(client)
+        resp = client.get("/api/nodes")
+        assert resp.status_code == 200
+        row = resp.get_json()[0]
+        assert "node_id" in row
+        assert "id" not in row

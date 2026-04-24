@@ -11,15 +11,18 @@ nodes_bp = Blueprint("nodes", __name__)
 _MAX_NAME_LEN = 100
 
 
+_NODE_ID_ERROR = "node_id must be a positive integer"
+
+
 def _validate_node_id(raw):
     """Accept a JSON integer only. Reject strings, floats, booleans, and non-positive.
 
     Returns (node_id, None) on success, or (None, error_message) on failure.
     """
     if isinstance(raw, bool) or not isinstance(raw, int):
-        return None, "node_id must be a positive integer"
+        return None, _NODE_ID_ERROR
     if raw < 1:
-        return None, "node_id must be a positive integer"
+        return None, _NODE_ID_ERROR
     return raw, None
 
 
@@ -45,7 +48,10 @@ def add_node():
 
     name = data.get("name")
     if name is not None:
-        name = str(name)
+        # Reject non-string names (bool/list/dict) explicitly — str() would
+        # happily stringify them ("True", "[1, 2]") and store garbage.
+        if not isinstance(name, str):
+            return jsonify({"error": f"name must be a string (1-{_MAX_NAME_LEN} characters)"}), 400
         if len(name) == 0 or len(name) > _MAX_NAME_LEN:
             return jsonify({"error": f"name must be 1-{_MAX_NAME_LEN} characters"}), 400
 

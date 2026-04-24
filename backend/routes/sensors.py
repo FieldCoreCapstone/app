@@ -2,14 +2,15 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
-from backend.models.database import get_history, get_latest_readings, get_node, insert_reading
-from backend.routes.nodes import _validate_node_id
+from backend.models.database import _RANGE_MAP, get_history, get_latest_readings, get_node, insert_reading
+from backend.routes.nodes import _NODE_ID_ERROR, _validate_node_id
 
 logger = logging.getLogger(__name__)
 
 sensors_bp = Blueprint("sensors", __name__)
 
-VALID_RANGES = {"15m", "1h", "12h", "24h", "7d", "1m", "3m"}
+# Derived from _RANGE_MAP so the route guard and the SQL dispatch can never drift.
+VALID_RANGES = frozenset(_RANGE_MAP.keys())
 
 
 @sensors_bp.route("/api/sensor/latest")
@@ -32,11 +33,15 @@ def history():
         try:
             node_id = int(raw_node_id)
         except (ValueError, TypeError):
-            return jsonify({"error": "node_id must be a positive integer"}), 400
+            return jsonify({"error": _NODE_ID_ERROR}), 400
         if node_id < 1:
-            return jsonify({"error": "node_id must be a positive integer"}), 400
+            return jsonify({"error": _NODE_ID_ERROR}), 400
 
     data = get_history(range_label, node_id=node_id)
+    # Defensive — VALID_RANGES is derived from _RANGE_MAP so they can't drift,
+    # but if get_history ever returns None we'd rather 500 than silently jsonify null.
+    if data is None:
+        return jsonify({"error": f"Unsupported range: {range_label}"}), 500
     return jsonify(data)
 
 
