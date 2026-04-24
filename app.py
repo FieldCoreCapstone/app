@@ -105,6 +105,7 @@ def create_app():
             temp = r.get("temperature") or 0
             table_data.append({
                 "node_id": r["node_id"],
+                "name": r.get("name") or f"field_{r['node_id']}",
                 "battery": battery,
                 "moisture": pct,
                 "temp": round(temp, 1),

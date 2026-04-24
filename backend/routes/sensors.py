@@ -3,6 +3,7 @@ import logging
 from flask import Blueprint, jsonify, request
 
 from backend.models.database import get_history, get_latest_readings, get_node, insert_reading
+from backend.routes.nodes import _validate_node_id
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,17 @@ def history():
     if range_label not in VALID_RANGES:
         return jsonify({"error": f"Invalid range. Use one of: {', '.join(sorted(VALID_RANGES))}"}), 400
 
-    node_id = request.args.get("node_id")
+    raw_node_id = request.args.get("node_id")
+    node_id = None
+    if raw_node_id is not None:
+        # Query-string values are always strings — coerce to int here.
+        try:
+            node_id = int(raw_node_id)
+        except (ValueError, TypeError):
+            return jsonify({"error": "node_id must be a positive integer"}), 400
+        if node_id < 1:
+            return jsonify({"error": "node_id must be a positive integer"}), 400
+
     data = get_history(range_label, node_id=node_id)
     return jsonify(data)
 
@@ -41,9 +52,13 @@ def ingest_reading():
     if missing:
         return jsonify({"error": f"Missing required fields: {', '.join(missing)}"}), 400
 
+    node_id, err = _validate_node_id(data["node_id"])
+    if err:
+        return jsonify({"error": err}), 400
+
     # Verify the node exists
-    if not get_node(data["node_id"]):
-        return jsonify({"error": f"Unknown node_id: '{data['node_id']}'"}), 404
+    if not get_node(node_id):
+        return jsonify({"error": f"Unknown node_id: {node_id}"}), 404
 
     try:
         moisture = int(data["moisture"])
@@ -54,7 +69,7 @@ def ingest_reading():
         return jsonify({"error": "moisture and battery must be integers; temperature must be a number"}), 400
 
     reading_id = insert_reading(
-        node_id=data["node_id"],
+        node_id=node_id,
         moisture=moisture,
         temperature=temperature,
         battery=battery,
