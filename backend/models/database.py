@@ -96,11 +96,13 @@ def get_latest_readings(db_path=None):
 # SAFETY: Values are trusted constants, never derived from user input.
 # The range_label key is validated against this dict before use.
 _RANGE_MAP = {
-    "24h": ("datetime('now', '-1 day')", "strftime('%Y-%m-%d %H:00', timestamp)"),
-    "7d":  ("datetime('now', '-7 days')", "strftime('%Y-%m-%d %H:00', timestamp)"),
-    "1m":  ("datetime('now', '-1 month')", "strftime('%Y-%m-%d', timestamp)"),
-    "3m":  ("datetime('now', '-3 months')", "strftime('%Y-%m-%d', timestamp)"),
-    "1y":  ("datetime('now', '-1 year')", "strftime('%Y-W%W', timestamp)"),
+    "15m": ("datetime('now', '-15 minutes')", "strftime('%Y-%m-%d %H:%M', timestamp)"),
+    "1h":  ("datetime('now', '-1 hour')",     "strftime('%Y-%m-%d %H:%M', timestamp)"),
+    "12h": ("datetime('now', '-12 hours')",   "strftime('%Y-%m-%d %H:00', timestamp)"),
+    "24h": ("datetime('now', '-1 day')",      "strftime('%Y-%m-%d %H:00', timestamp)"),
+    "7d":  ("datetime('now', '-7 days')",     "strftime('%Y-%m-%d %H:00', timestamp)"),
+    "1m":  ("datetime('now', '-1 month')",    "strftime('%Y-%m-%d', timestamp)"),
+    "3m":  ("datetime('now', '-3 months')",   "strftime('%Y-%m-%d', timestamp)"),
 }
 
 

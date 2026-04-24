@@ -15,6 +15,7 @@ build/
 # AI / Tooling
 .tac/
 .claude/
+.context/
 
 # OS
 .DS_Store

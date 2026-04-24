@@ -12,16 +12,6 @@ const NODE_R = 18;
 const REFRESH_MS = 3000; // auto-refresh every 3s
 // Moisture is stored as integer percent (0-100); no raw-to-percent scaling needed.
 
-// Map button labels to API range keys
-const RANGE_MAP = {
-    'Live':      null,
-    '24 Hours':  '24h',
-    '7 Days':    '7d',
-    '1 Month':   '1m',
-    '3 Months':  '3m',
-    '1 Year':    '1y',
-};
-
 const CHART_COLORS = [
     '#48BB78', // green
     '#4299E1', // blue
@@ -31,9 +21,20 @@ const CHART_COLORS = [
     '#38B2AC', // teal
 ];
 
+// Human-readable windows for the Empty state message. `data-range` and
+// `data-metric` attributes on the chart-controls buttons carry the raw
+// keys (e.g. '15m', 'moisture') which also match backend VALID_RANGES.
+// Metric names aren't aliased — the raw key ('moisture', 'temperature')
+// reads naturally in 'No moisture readings in the last 7 days'.
+const RANGE_LABELS = {
+    '15m': '15 minutes', '1h': 'hour', '12h': '12 hours',
+    '24h': '24 hours',    '7d': '7 days',
+    '1m':  'month',       '3m': '3 months',
+};
+
 let historyChart = null;
 let refreshTimer = null;
-let currentRange = 'Live';
+let currentRange = '7d';            // chart time-range key (matches VALID_RANGES)
 let leafletMap = null;
 let leafletMarkers = {};  // node_id -> L.circleMarker
 let activeView = 'map'; // 'canvas' or 'map'
@@ -41,7 +42,18 @@ let knownNodeIds = null;   // Set of node_ids for fitBounds tracking
 let mapControlPanel = null; // custom L.Control for tile/heatmap/metric
 let heatmapOverlay = null; // L.imageOverlay for IDW heatmap
 let heatmapLegend = null;  // L.Control for color bar legend
-let activeMetric = 'moisture'; // 'moisture' or 'temperature'
+
+/* Two separate "active metric" states — do NOT cross-wire:
+ *   activeMetric → drives the map heatmap + marker colors. Read by
+ *     updateHeatmap, getMarkerColor, and passed into renderHeatmapCanvas
+ *     in heatmap.js.
+ *   chartMetric  → drives the chart card only. Flipped by the Moisture /
+ *     Temperature toggle beneath "Historical Trends".
+ */
+let activeMetric = 'moisture';
+let chartMetric = 'moisture';
+let chartAbort = null;          // AbortController for the in-flight history fetch
+
 let lastReadings = null;   // most recent readings for metric-switch re-renders
 let heatmapBorderBlack = null;  // L.rectangle — black dashes
 let heatmapBorderYellow = null; // L.rectangle — yellow dashes (offset)
@@ -102,14 +114,6 @@ function getMarkerColor(r) {
 /* ── API helpers ──────────────────────────────────────────────────────── */
 async function fetchLatest() {
     const resp = await fetch('/api/sensor/latest');
-    if (!resp.ok) throw new Error(`API error: ${resp.status}`);
-    return resp.json();
-}
-
-async function fetchHistory(range, nodeId) {
-    let url = `/api/sensor/history?range=${range}`;
-    if (nodeId) url += `&node_id=${encodeURIComponent(nodeId)}`;
-    const resp = await fetch(url);
     if (!resp.ok) throw new Error(`API error: ${resp.status}`);
     return resp.json();
 }
@@ -281,9 +285,12 @@ function updateTable(readings) {
 }
 
 /* ── Chart rendering ──────────────────────────────────────────────────── */
-function renderChart(historyData) {
+function renderChart(metric, historyData) {
     const ctx = document.getElementById('historyChart');
     if (!ctx) return;
+
+    const dataKey = metric === 'temperature' ? 'avg_temperature' : 'avg_moisture';
+    const isTemp  = metric === 'temperature';
 
     // Group by node_id
     const byNode = {};
@@ -294,21 +301,27 @@ function renderChart(historyData) {
 
     const nodeIds = Object.keys(byNode).sort();
 
-    // Build datasets — one line per node for avg_moisture
     const datasets = nodeIds.map((nodeId, i) => {
         const rows = byNode[nodeId];
         return {
             label: nodeId,
-            data: rows.map(r => ({
-                x: r.period,
-                y: normalizeMoisture(r.avg_moisture || 0),
-            })),
+            data: rows.map(r => {
+                const raw = r[dataKey];
+                let y;
+                if (raw === null || raw === undefined) {
+                    y = null; // Chart.js renders as a gap when spanGaps is false
+                } else {
+                    y = isTemp ? Number(raw) : normalizeMoisture(raw);
+                }
+                return { x: r.period, y };
+            }),
             borderColor: CHART_COLORS[i % CHART_COLORS.length],
             backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + '20',
             borderWidth: 2,
             pointRadius: 1,
             tension: 0.3,
-            fill: true,
+            fill: !isTemp, // fill under moisture looks nice; leaves temp lines clean
+            spanGaps: false,
         };
     });
 
@@ -316,29 +329,32 @@ function renderChart(historyData) {
         historyChart.destroy();
     }
 
+    const yAxis = isTemp
+        ? { suggestedMin: 0, suggestedMax: 40, title: { display: true, text: 'Temperature (°C)', font: { size: 11 } }, ticks: { font: { size: 10 } } }
+        : { min: 0, max: 100,                  title: { display: true, text: 'Moisture %',       font: { size: 11 } }, ticks: { font: { size: 10 } } };
+
     historyChart = new Chart(ctx, {
         type: 'line',
         data: { datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            interaction: {
-                mode: 'index',
-                intersect: false,
-            },
+            interaction: { mode: 'index', intersect: false },
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: {
-                        boxWidth: 12,
-                        padding: 12,
-                        font: { size: 11 },
-                    },
+                    labels: { boxWidth: 12, padding: 12, font: { size: 11 } },
                 },
                 tooltip: {
                     callbacks: {
-                        label: function(ctx) {
-                            return `${ctx.dataset.label}: ${ctx.parsed.y}% moisture`;
+                        label: (c) => {
+                            // Suppress tooltip rows for gap points (y === null);
+                            // returning null from a label callback hides that
+                            // series from the shared-index tooltip.
+                            if (c.parsed.y === null || c.parsed.y === undefined) return null;
+                            return isTemp
+                                ? `${c.dataset.label}: ${c.parsed.y.toFixed(1)} °C`
+                                : `${c.dataset.label}: ${c.parsed.y}%`;
                         },
                     },
                 },
@@ -346,25 +362,11 @@ function renderChart(historyData) {
             scales: {
                 x: {
                     type: 'category',
-                    // Union of all periods across all nodes for correct alignment
                     labels: [...new Set(datasets.flatMap(ds => ds.data.map(d => d.x)))].sort(),
-                    ticks: {
-                        maxTicksLimit: 12,
-                        font: { size: 10 },
-                        maxRotation: 45,
-                    },
+                    ticks: { maxTicksLimit: 12, font: { size: 10 }, maxRotation: 45 },
                     grid: { display: false },
                 },
-                y: {
-                    min: 0,
-                    max: 100,
-                    title: {
-                        display: true,
-                        text: 'Moisture %',
-                        font: { size: 11 },
-                    },
-                    ticks: { font: { size: 10 } },
-                },
+                y: yAxis,
             },
         },
     });
@@ -722,13 +724,13 @@ function initHeatmapLegend() {
 
 /* ── View toggle ─────────────────────────────────────────────────────── */
 function setupViewToggle() {
-    document.querySelectorAll('.view-toggle .time-btn').forEach(btn => {
+    document.querySelectorAll('.view-toggle .view-toggle-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const view = btn.dataset.view;
             if (view === activeView) return;
 
             // Update button states
-            document.querySelectorAll('.view-toggle .time-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.view-toggle .view-toggle-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
             activeView = view;
@@ -780,14 +782,96 @@ async function refreshDashboard() {
     } catch (err) {
         console.error('Failed to refresh dashboard:', err);
     }
+
+    // Chart also rides the same 3s timer, tagged so the loading spinner
+    // stays hidden and transient network blips don't flash the error card.
+    loadHistory(currentRange, chartMetric, { isAutoRefresh: true });
 }
 
-async function loadHistory(rangeKey) {
+/* ── Chart state overlays ─────────────────────────────────────────────── */
+function showChartState(name) {
+    ['loading', 'empty', 'error'].forEach(key => {
+        const el = document.querySelector(`.chart-${key}`);
+        if (!el) return;
+        if (key === name) el.removeAttribute('hidden');
+        else el.setAttribute('hidden', '');
+    });
+}
+
+function hideChartStates() {
+    ['loading', 'empty', 'error'].forEach(key => {
+        document.querySelector(`.chart-${key}`)?.setAttribute('hidden', '');
+    });
+}
+
+function setChartEmptyMessage(metric, range) {
+    const el = document.querySelector('.chart-empty');
+    if (!el) return;
+    const r = RANGE_LABELS[range] || range;
+    el.textContent = `No ${metric} readings in the last ${r}`;
+}
+
+/* ── Chart fetch ──────────────────────────────────────────────────────── */
+async function loadHistory(range, metric, { isAutoRefresh = false } = {}) {
+    // Livelock guard: if an auto fetch is already pending, don't stack another.
+    if (isAutoRefresh && chartAbort) return;
+
+    // User click always wins — abort any prior in-flight request.
+    if (!isAutoRefresh && chartAbort) chartAbort.abort();
+
+    if (!isAutoRefresh) showChartState('loading');
+
+    const myController = new AbortController();
+    chartAbort = myController;
+
     try {
-        const data = await fetchHistory(rangeKey);
-        renderChart(data);
+        const resp = await fetch(`/api/sensor/history?range=${encodeURIComponent(range)}`, {
+            signal: myController.signal,
+        });
+        // Stale-response race guard: a newer call may have overwritten chartAbort.
+        if (myController !== chartAbort) return;
+
+        if (!resp.ok) throw new Error(`API ${resp.status}`);
+        const data = await resp.json();
+        if (myController !== chartAbort) return;
+        // A 200 with a non-array body is a malformed response — route it
+        // through the error path instead of silently claiming "no readings".
+        if (!Array.isArray(data)) throw new Error('Unexpected response shape');
+
+        chartAbort = null;
+
+        if (data.length === 0) {
+            // On auto-refresh ticks keep the last good chart visible — a
+            // transient empty window mid-session shouldn't wipe the chart.
+            if (isAutoRefresh) return;
+            setChartEmptyMessage(metric, range);
+            showChartState('empty');
+            if (historyChart) { historyChart.destroy(); historyChart = null; }
+            return;
+        }
+
+        hideChartStates();
+        renderChart(metric, data);
     } catch (err) {
-        console.error('Failed to load history:', err);
+        if (err.name === 'AbortError') {
+            // Clear chartAbort only if this controller is still the "current"
+            // one — normally a newer call already overwrote it, but if this
+            // was the last pending fetch with no successor, the livelock guard
+            // would otherwise block every future auto-tick.
+            if (myController === chartAbort) chartAbort = null;
+            return;
+        }
+        // Only this controller's failure matters.
+        if (myController !== chartAbort) return;
+        chartAbort = null;
+
+        if (isAutoRefresh) {
+            // Leave the last populated chart visible; silent log.
+            console.warn('Chart auto-refresh failed:', err);
+        } else {
+            console.error('Failed to load history:', err);
+            showChartState('error');
+        }
     }
 }
 
@@ -796,36 +880,47 @@ function startAutoRefresh() {
     refreshTimer = setInterval(refreshDashboard, REFRESH_MS);
 }
 
-function stopAutoRefresh() {
-    if (refreshTimer) {
-        clearInterval(refreshTimer);
-        refreshTimer = null;
-    }
+/* ── Chart control handlers ───────────────────────────────────────────── */
+function setupChartMetricButtons() {
+    document.querySelectorAll('.chart-metric-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const newMetric = btn.dataset.metric;
+            if (newMetric === chartMetric) return; // no-op on already-active
+
+            document.querySelector('.chart-metric-btn.active')?.classList.remove('active');
+            btn.classList.add('active');
+            chartMetric = newMetric;
+
+            loadHistory(currentRange, chartMetric);
+        });
+    });
 }
 
-/* ── Time-range button handlers ───────────────────────────────────────── */
-function setupTimeButtons() {
-    document.querySelectorAll('.time-btn').forEach(btn => {
+function setupChartRangeButtons() {
+    document.querySelectorAll('.chart-range-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            // Toggle active class
-            document.querySelector('.time-btn.active')?.classList.remove('active');
+            const newRange = btn.dataset.range;
+            if (newRange === currentRange) return; // no-op on already-active
+
+            document.querySelector('.chart-range-btn.active')?.classList.remove('active');
             btn.classList.add('active');
+            currentRange = newRange;
 
-            const label = btn.dataset.range;
-            currentRange = label;
-            const rangeKey = RANGE_MAP[label];
-
-            if (rangeKey === null) {
-                // "Live" mode: show latest data, enable auto-refresh
-                refreshDashboard();
-                startAutoRefresh();
-            } else {
-                // Historical mode: fetch history, stop auto-refresh
-                stopAutoRefresh();
-                loadHistory(rangeKey);
-                refreshDashboard(); // still show latest in map+table
-            }
+            loadHistory(currentRange, chartMetric);
         });
+    });
+}
+
+function setupChartErrorRetry() {
+    const btn = document.querySelector('.chart-error-retry');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+            await loadHistory(currentRange, chartMetric);
+        } finally {
+            btn.disabled = false;
+        }
     });
 }
 
@@ -839,14 +934,16 @@ function init() {
         updateTable(readings);
     }).catch(() => {});
 
-    setupTimeButtons();
+    setupChartMetricButtons();
+    setupChartRangeButtons();
+    setupChartErrorRetry();
     setupViewToggle();
 
-    // Start auto-refresh in "Live" mode
+    // Auto-refresh drives map, table, and chart on one 3s timer.
     startAutoRefresh();
 
-    // Load default chart (7 day history)
-    loadHistory('7d');
+    // First chart paint — shows the loading spinner until the fetch resolves.
+    loadHistory(currentRange, chartMetric);
 
     // Redraw on resize
     let resizeTimer;

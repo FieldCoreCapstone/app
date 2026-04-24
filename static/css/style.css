@@ -46,43 +46,6 @@ html, body {
     overflow: hidden;
 }
 
-/* ── Time-range bar ────────────────────────────────────────────────────── */
-.time-bar {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 4px;
-    height: 44px;
-    flex-shrink: 0;
-}
-
-.time-btn {
-    height: 36px;
-    min-width: 80px;
-    padding: 0 16px;
-    border: 1px solid var(--btn-border);
-    border-radius: 8px;
-    background: var(--btn-bg);
-    color: var(--text-mid);
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 400;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-    user-select: none;
-}
-
-.time-btn:hover {
-    background: #EDF2F7;
-}
-
-.time-btn.active {
-    background: var(--accent);
-    color: var(--accent-fg);
-    border-color: var(--accent);
-    font-weight: 600;
-}
-
 /* ── Card ──────────────────────────────────────────────────────────────── */
 .card {
     background: var(--card-bg);
@@ -161,6 +124,33 @@ html, body {
 .view-toggle {
     display: flex;
     gap: 4px;
+}
+
+.view-toggle-btn {
+    height: 36px;
+    min-width: 80px;
+    padding: 0 16px;
+    border: 1px solid var(--btn-border);
+    border-radius: 8px;
+    background: var(--btn-bg);
+    color: var(--text-mid);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    user-select: none;
+}
+
+.view-toggle-btn:hover {
+    background: #EDF2F7;
+}
+
+.view-toggle-btn.active {
+    background: var(--accent);
+    color: var(--accent-fg);
+    border-color: var(--accent);
+    font-weight: 600;
 }
 
 .canvas-wrap {
@@ -307,7 +297,7 @@ html, body {
     margin-top: 16px;
     display: flex;
     flex-direction: column;
-    min-height: 220px;
+    flex-shrink: 0;
 }
 
 .chart-card .card-title {
@@ -317,15 +307,108 @@ html, body {
     margin-bottom: 8px;
 }
 
+.chart-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 4px 0 12px;
+    flex-shrink: 0;
+}
+
+.chart-metric-group,
+.chart-range-group {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.chart-metric-btn,
+.chart-range-btn,
+.chart-error-retry {
+    height: 36px;
+    min-width: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--btn-border);
+    border-radius: 8px;
+    background: var(--btn-bg);
+    color: var(--text-mid);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    user-select: none;
+}
+
+.chart-metric-btn:hover,
+.chart-range-btn:hover,
+.chart-error-retry:hover {
+    background: #EDF2F7;
+}
+
+.chart-metric-btn.active,
+.chart-range-btn.active {
+    background: var(--accent);
+    color: var(--accent-fg);
+    border-color: var(--accent);
+    font-weight: 600;
+}
+
+.chart-error-retry:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--btn-bg);
+}
+
 .chart-wrap {
-    flex: 1;
     position: relative;
-    min-height: 180px;
+    height: 220px;
+    flex-shrink: 0;
 }
 
 .chart-wrap canvas {
     width: 100% !important;
     height: 100% !important;
+}
+
+/* ── Chart state overlays ─────────────────────────────────────────────── */
+.chart-loading,
+.chart-empty,
+.chart-error {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-mid);
+    font-size: 14px;
+    pointer-events: none;
+}
+
+.chart-error {
+    pointer-events: auto;
+}
+
+.chart-loading[hidden],
+.chart-empty[hidden],
+.chart-error[hidden] {
+    display: none;
+}
+
+.chart-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: chart-spin 0.8s linear infinite;
+}
+
+@keyframes chart-spin {
+    to { transform: rotate(360deg); }
 }
 
 /* ── Map control panel (on-map buttons) ───────────────────────────────── */
