@@ -76,6 +76,5 @@ Thumbs.db
 Desktop.ini
 
 # ── Local-only ────────────────────────────────────────────────────────────
-.env
-.env.local
 *.local
+config.bat
