@@ -1,0 +1,11 @@
+[tool.pytest.ini_options]
+testpaths = ["tests", "pi_software/tests"]
+# importlib mode lets both tests/ and pi_software/tests/ have their own
+# conftest.py without colliding on the shared "tests" package name.
+addopts = "--import-mode=importlib"
+markers = [
+    "unit: fast, isolated tests of a single function or module",
+    "integration: tests that exercise multiple layers (CSV→DB, API→DB→API, seed→dashboard)",
+    "system: tests that touch the shell, env vars, or boot the full app",
+    "manual: placeholder marker — manual checklists live in tests/manual/*.md, not as functions",
+]

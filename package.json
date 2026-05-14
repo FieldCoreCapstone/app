@@ -1,0 +1,14 @@
+{
+  "name": "fieldcore-frontend-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Jest test suite for FieldCore frontend JavaScript (static/js/*.js).",
+  "scripts": {
+    "test": "jest --config jest.config.json"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "jest-canvas-mock": "^2.5.2"
+  }
+}

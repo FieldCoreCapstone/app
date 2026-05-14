@@ -1,0 +1,6 @@
+{
+  "testEnvironment": "jsdom",
+  "testMatch": ["<rootDir>/tests/frontend/**/*.test.js"],
+  "setupFiles": ["jest-canvas-mock"],
+  "rootDir": "."
+}
