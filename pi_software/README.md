@@ -23,9 +23,14 @@ Arduino (field node) --LoRa--> RFM95W --SPI--> Pi
 
 ## Packet Format
 
-The Arduino sends CSV over LoRa: `node_id,moisture,temperature,battery_voltage`
+The Arduino sends CSV over LoRa: `node_id,moisture_pct,temperature_c,vcc_millivolts`
 
-Example: `FIELD_01,450,22.5,8.7`
+Example: `1,46,22.5,5161`
+
+- `node_id` — integer matching `nodes.id` in the database
+- `moisture_pct` — integer 0-100 (already a percent on the wire)
+- `temperature_c` — float, degrees Celsius
+- `vcc_millivolts` — integer; the Arduino's 5 V supply rail in mV. The Pi maps this linearly to a 0-100 battery-health percent (4500 → 0 %, 5500 → 100 %).
 
 The Pi reads RSSI from the radio metadata separately.
 

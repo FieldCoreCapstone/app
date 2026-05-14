@@ -1,26 +1,81 @@
-# Virtual environment
-venv/
-
-# Database
-*.db
-
-# Python
+# ── Python ────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+*.egg
 *.egg-info/
 dist/
 build/
-.pytest_cache/
+.eggs/
+*.manifest
+*.spec
 
-# AI / Tooling
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python testing / type-checking caches
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+
+# ── Node / Jest ───────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Jest coverage output
+coverage/
+
+# ── Database ──────────────────────────────────────────────────────────────
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ── Logs / runtime ────────────────────────────────────────────────────────
+*.log
+*.pid
+
+# ── AI / Tooling ──────────────────────────────────────────────────────────
 .tac/
 .claude/
 .context/
 
-# OS
-.DS_Store
-Thumbs.db
+# Compound Engineering artifacts (ce:plan, ce:brainstorm, ce:compound)
+docs/plans/
+docs/brainstorms/
+docs/solutions/
 
-# IDE
+# ── Editor / IDE ──────────────────────────────────────────────────────────
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+
+# ── OS ────────────────────────────────────────────────────────────────────
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+Thumbs.db
+Desktop.ini
+
+# ── Local-only ────────────────────────────────────────────────────────────
+.env
+.env.local
+*.local

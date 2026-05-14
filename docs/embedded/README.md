@@ -15,7 +15,7 @@ To build a single node, you will need the following components:
 - **Microcontroller:** Arduino Uno R3
 - **Radio:** HopeRF RFM95W LoRa Transceiver (915 MHz)
 - **Sensor:** RS485 Modbus Soil Sensor (Moisture & Temperature)
-- **Power:** LiFePO4 Battery + Adafruit TPL5110 Power Timer
+- **Power:** 6×AA battery pack (5 V regulated rail). Sleep is handled in firmware — no external power timer.
 - **Housing:** NSF-61 PVC Pipe
 
 ## Pinout Configuration
@@ -26,7 +26,6 @@ To build a single node, you will need the following components:
 | **RFM95W MISO**  | 12          | SPI Bus                       |
 | **RFM95W SCK**   | 13          | SPI Bus                       |
 | **RFM95W NSS**   | 10          | Chip Select                   |
-| **TPL5110 Done** | 4           | Pull HIGH to signal sleep [5] |
 | **Sensor RX/TX** | 2, 3        | SoftwareSerial                |
 
 ## LoRa Data Contract
@@ -35,18 +34,20 @@ To build a single node, you will need the following components:
 
 **Format:**
 ```text
-"Temperature,Moisture"
+"node_id,moisture_pct,temperature_c,vcc_millivolts"
 ```
 
 **Example:**
 ```text
-"24.5,523"
+"1,46,22.5,5161"
 ```
 
 **Details:**
-* **Temperature:** Float (Celsius)
-* **Moisture:** Integer (Raw capacitance value)
-* **Max Packet Size:** <20 Bytes
+* **node_id:** Integer (matches the node's row in the Pi database)
+* **moisture_pct:** Integer 0-100 (already a percent — Modbus raw value is converted on the Arduino)
+* **temperature_c:** Float, degrees Celsius
+* **vcc_millivolts:** Integer mV of the Arduino's 5 V supply rail
+* **Max Packet Size:** <30 Bytes
 
 ## Setup & Flashing
 
@@ -61,6 +62,6 @@ To build a single node, you will need the following components:
 ```text
 /
 ├── src/          # Main source code (main.ino)
-├── docs/         # Wiring diagrams and TPL5110 logic
+├── docs/         # Wiring diagrams and sleep-cycle logic
 └── libraries/    # Custom sensor drivers and dependencies
 ```
