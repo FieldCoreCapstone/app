@@ -10,7 +10,6 @@ A web dashboard for monitoring agricultural soil-moisture sensors. Built with Fl
 
 A few other things worth knowing:
 
-- **The system is real.** It runs on actual hardware: Arduino field nodes in custom waterproof enclosures, talking over LoRa to a Raspberry Pi running this Flask app. There's a lot of work that doesn't show up in code — hardware design, wiring, weatherproofing, field assembly.
 - **Test suite:** 214 automated tests pass (`pytest` + `npm test`). See [`tests/README.md`](tests/README.md).
 - **Architecture overview:** [`docs/raspberry-pi/ARCHITECTURE.md`](docs/raspberry-pi/ARCHITECTURE.md).
 - **API + DB reference:** [`docs/API.md`](docs/API.md), [`docs/DATABASE.md`](docs/DATABASE.md).
